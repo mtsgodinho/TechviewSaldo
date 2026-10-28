@@ -1,0 +1,9 @@
+export type Profile={id:string;name:string;role:string;active:boolean};
+export type Client={id:string;email:string;phone:string;created_at:string};
+export type Wallet={client_id:string;balance_cents:number};
+export type Transaction={id:string;client_id:string;type:string;amount_cents:number;description:string;balance_before:number;balance_after:number;occurred_on:string;created_at:string;actor_id:string};
+export type PixRequest={id:string;client_id:string;amount_cents:number;status:string;txid:string;payload:string;receiver_name:string;bank:string;created_at:string;qr?:string};
+export type Settings={bank:string;pix_key:string;receiver_name:string;city:string;minimum_cents:number};
+export type AppData={profile:Profile;profiles:Profile[];clients:Client[];wallets:Wallet[];transactions:Transaction[];requests:PixRequest[];settings:Settings|null};
+export const money=(c:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(c/100);
+export const labels:Record<string,string>={pix:'Recarga Pix',manual_credit:'Crédito manual',manual_debit:'Débito manual',meta_ads:'Recarga Meta Ads',refund:'Estorno',awaiting:'Aguardando',informed:'Pagamento informado',confirmed:'Confirmado',rejected:'Rejeitado'};

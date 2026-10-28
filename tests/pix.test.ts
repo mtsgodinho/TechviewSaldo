@@ -1,0 +1,8 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {crc16,pixPayload,parseCents} from '../lib/pix';
+test('CRC16 CCITT-FALSE known vector',()=>assert.equal(crc16('123456789'),'29B1'));
+function tlv(s:string){const out:Record<string,string>={};while(s.length){const id=s.slice(0,2),n=Number(s.slice(2,4));assert.ok(Number.isInteger(n)&&n>=0);const v=s.slice(4,4+n);assert.equal(Buffer.byteLength(v),n);out[id]=v;s=s.slice(4+n);}return out;}
+test('BR Code fields, amount, txid, normalization and CRC',()=>{const p=pixPayload({key:'cliente@example.com',name:'João da Silva',city:'São Paulo',cents:12345,txid:'A123'});const f=tlv(p);assert.equal(f['00'],'01');assert.equal(f['53'],'986');assert.equal(f['54'],'123.45');assert.equal(f['58'],'BR');assert.equal(f['59'],'JOAO DA SILVA');assert.equal(f['60'],'SAO PAULO');assert.equal(tlv(f['26'])['00'],'br.gov.bcb.pix');assert.equal(tlv(f['26'])['01'],'cliente@example.com');assert.equal(tlv(f['62'])['05'],'A123');assert.equal(f['63'],crc16(p.slice(0,-4)));});
+test('currency parsing preserves cents and rejects invalid input',()=>{assert.equal(parseCents('150,09'),15009);assert.equal(parseCents('0.01'),1);for(const v of ['0','-1','1.234','NaN','1e3','1,2.3',''])assert.throws(()=>parseCents(v));});
+test('payload rejects invalid values and identifiers',()=>{const i={key:'a@b.com',name:'Nome',city:'Cidade',cents:100,txid:'ABC'};for(const cents of [0,-1,1.5,NaN,100000000])assert.throws(()=>pixPayload({...i,cents}));assert.throws(()=>pixPayload({...i,txid:'not-valid!'}));assert.throws(()=>pixPayload({...i,key:'x'.repeat(78)}));});
