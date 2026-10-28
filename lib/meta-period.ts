@@ -18,4 +18,4 @@ export function validatePeriod(since:string,until:string,now=new Date()):Period{
  if(since<earliest.toISOString().slice(0,10))throw new Error('Consulte um período dentro dos últimos 36 meses');
  return {since,until};
 }
-export type CampaignReport={id:string;spend_cents:number;impressions:number;clicks:number};
+export type CampaignReport={id:string;spend_cents:number;impressions:number;clicks:number;sales:number;sale_event:string|null};

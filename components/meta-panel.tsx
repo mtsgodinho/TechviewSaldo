@@ -38,6 +38,7 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
  function choose(id:PeriodPreset){const next=presetPeriod(id);setPeriod(next);setSince(next.since);setUntil(next.until);setActive(id);setDateError('');}
  const spend=report?.reduce((sum,c)=>sum+c.spend_cents,0)||0,impressions=report?.reduce((sum,c)=>sum+c.impressions,0)||0,clicks=report?.reduce((sum,c)=>sum+c.clicks,0)||0;
  const tax=report?.reduce((sum,c)=>sum+taxCents(c.spend_cents),0)||0;
+ const sales=report?.[0]?.sales,saleEvent=report?.[0]?.sale_event;
  const ready=report!==null&&!loading&&loadedReportKey===requestKey;
  return <>
   <section className="panel">
@@ -60,8 +61,9 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
     <p className="period-caption">Período: <strong>{displayDate(period.since)} a {displayDate(period.until)}</strong> • Horário de São Paulo</p>
     {reportError&&<div className="error" role="alert">{reportError}<button className="text-button" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></div>}
     {loading&&<p role="status">Consultando o período na Meta…</p>}
-    <div className="overview-grid" aria-busy={loading}>
+    <div className="overview-grid campaign-metrics" aria-busy={loading}>
      <section className="mini-stat"><TrendingUp className="cyan"/><p>Gasto no período</p><strong>{ready?money(spend):'—'}</strong><small>Gasto total informado pela Meta nas datas selecionadas</small></section>
+     <section className="mini-stat campaign-sales" aria-label="Vendas no período"><p>Vendas no período</p><strong>{ready&&sales!==undefined?sales.toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}</strong><small>{ready&&sales!==undefined?(saleEvent?'Compras atribuídas pela Meta no período':'Nenhum evento de compra informado pela Meta no período'):'Eventos de compra atribuídos pela Meta'}</small></section>
      <section className="mini-stat"><p>Impressões / cliques</p><strong>{ready?`${impressions.toLocaleString('pt-BR')} / ${clicks.toLocaleString('pt-BR')}`:'—'}</strong><small>CTR: {ready?(impressions?clicks/impressions*100:0).toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}%</small></section>
      <section className="mini-stat"><p>Custo por clique</p><strong>{ready&&clicks?money(Math.round(spend/clicks)):'—'}</strong><small>Gasto dividido por cliques no período</small></section>
     </div>
@@ -70,10 +72,11 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
     {queriedAt&&ready&&<small>Relatório consultado em {new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(queriedAt))}. A Meta pode atualizar os números com atraso.</small>}
     {!campaigns.length&&<p>Nenhuma campanha vinculada ainda.</p>}
    </div>
-   <div className="table-wrap"><table><thead><tr><th>Campanha</th>{admin&&<th>Cliente</th>}<th>Gasto no período</th><th>Taxa 12%</th><th>Total com taxa</th><th>Impressões</th><th>Cliques</th><th>Pendente na carteira</th><th>Última sincronização financeira</th></tr></thead>
+   <div className="table-wrap"><table><thead><tr><th>Campanha</th>{admin&&<th>Cliente</th>}<th>Vendas</th><th>Gasto no período</th><th>Taxa 12%</th><th>Total com taxa</th><th>Impressões</th><th>Cliques</th><th>Pendente na carteira</th><th>Última sincronização financeira</th></tr></thead>
     <tbody>{selectedRows.map(c=>{const metric=ready?report?.find(row=>row.id===c.id):undefined;return <tr key={c.id}>
      <td><strong>{c.name}</strong><small style={{display:'block'}}>Vínculo em {new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(new Date(c.bound_at))}</small>{c.last_error&&<small className="negative" style={{display:'block',whiteSpace:'normal',maxWidth:280}}>{c.last_error}</small>}</td>
      {admin&&<td>{profiles.find(p=>p.id===c.client_id)?.name||'Cliente'}</td>}
+     <td>{metric?.sales!==undefined?metric.sales.toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}</td>
      <td>{metric?money(metric.spend_cents):'—'}</td><td>{metric?money(taxCents(metric.spend_cents)):'—'}</td><td>{metric?money(metric.spend_cents+taxCents(metric.spend_cents)):'—'}</td><td>{metric?metric.impressions.toLocaleString('pt-BR'):'—'}</td><td>{metric?metric.clicks.toLocaleString('pt-BR'):'—'}</td>
      <td>{money(campaignBill(c).pending)}</td><td>{new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(c.sampled_at))}</td>
     </tr>;})}</tbody></table></div>

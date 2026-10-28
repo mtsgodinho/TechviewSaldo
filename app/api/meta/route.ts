@@ -13,7 +13,7 @@ export async function GET(req:Request){try{
   const scope=params.get('client');if(scope)z.uuid().parse(scope);const campaign=params.get('campaign');if(campaign)z.string().regex(/^\d+$/).parse(campaign);
   const campaigns:{id:string;account_id:string}[]=[];
   for(let offset=0;;offset+=500){let query=db.from('meta_campaigns').select('id,account_id').order('id').range(offset,offset+499);if(scope)query=query.eq('client_id',scope);if(campaign)query=query.eq('id',campaign);const {data,error}=await query;if(error)throw new Error('Não foi possível consultar as campanhas vinculadas');campaigns.push(...(data||[]));if((data?.length||0)<500)break;}
-  const rows=await readCampaignReport(campaigns,metaAccount(),period,(id,range)=>metaGet(`${id}/insights`,{fields:'spend,impressions,clicks',time_range:JSON.stringify(range),limit:'1'}));
+  const rows=await readCampaignReport(campaigns,metaAccount(),period,(id,range)=>metaGet(`${id}/insights`,{fields:'spend,impressions,clicks,actions',time_range:JSON.stringify(range),use_unified_attribution_setting:'true',action_report_time:'impression',limit:'1'}));
   return NextResponse.json({period,rows,queried_at:new Date().toISOString()},{headers:{'Cache-Control':'private, no-store'}});
  }
  await actor(true);return NextResponse.json({campaigns:await remoteCampaigns()},{headers:{'Cache-Control':'no-store'}});
