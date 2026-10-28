@@ -18,5 +18,6 @@ export default async function Page(){
  const results=await Promise.all([allRows('profiles','id'),allRows('clients','id'),allRows('wallets','client_id'),allRows('wallet_transactions','created_at'),allRows('pix_requests','created_at'),profile.role==='admin'?db.from('pix_settings').select('*').maybeSingle():Promise.resolve({data:null,error:null})]);
  const failed=results.find(r=>r.error);if(failed)return <Login configured error="Não foi possível carregar os dados. Verifique a conexão e a instalação do SQL no Supabase."/>;
  const meta=await allRows('meta_campaigns','id');
- return <Dashboard data={{campaigns:meta.data||[],metaAvailable:!meta.error,profile,profiles:results[0].data||[],clients:results[1].data||[],wallets:results[2].data||[],transactions:results[3].data||[],requests:results[4].data||[],settings:results[5].data}}/>;
+ const {data:brand}=await db.from('brand_settings').select('updated_at').eq('id',true).maybeSingle();
+ return <Dashboard data={{accountEmail:user.email||'',brandVersion:brand?.updated_at||'',campaigns:meta.data||[],metaAvailable:!meta.error,profile,profiles:results[0].data||[],clients:results[1].data||[],wallets:results[2].data||[],transactions:results[3].data||[],requests:results[4].data||[],settings:results[5].data}}/>;
 }

@@ -1,7 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {PGlite} from '@electric-sql/pglite';
 const admin='11111111-1111-4111-8111-111111111111',client='22222222-2222-4222-8222-222222222222';
 for(const state of ['base','meta002','meta003'] as const)test(`unified SQL upgrades ${state} and does not double charge on repeat`,async()=>{
- const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
+ const db=new PGlite();await db.exec(`create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
  await db.exec(await readFile(new URL('../supabase/schema.sql',import.meta.url),'utf8'));
  await db.exec(`insert into auth.users values('${admin}'),('${client}');insert into profiles(id,name,role) values('${admin}','Admin','admin'),('${client}','Cliente','client');insert into clients(id,email) values('${client}','cliente@example.com');insert into wallets values('${client}',9000);`);
  if(state!=='base'){

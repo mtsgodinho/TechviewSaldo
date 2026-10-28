@@ -1,7 +1,8 @@
 import {test,expect} from '@playwright/test';
+import sharp from 'sharp';
 for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
  test(`login and configuration state ${viewport.width}px`,async({page})=>{
- await page.setViewportSize(viewport);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/brand/logo*',r=>r.fulfill({status:404}));await page.setViewportSize(viewport);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');await expect(page.getByRole('heading',{name:'Acesse sua conta'})).toBeVisible();if(await page.getByText('Ambiente em configuração.',{exact:false}).count())await expect(page.getByRole('button',{name:'Entrar na plataforma'})).toBeDisabled();else await expect(page.getByRole('button',{name:'Entrar na plataforma'})).toBeEnabled();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:`/tmp/techview-login-${viewport.width}.png`,fullPage:true});expect(errors).toEqual([]);
@@ -12,3 +13,10 @@ test('API rejects untrusted origins',async({request})=>{const r=await request.po
 test('cron rejects missing credentials',async({request})=>{const r=await request.get('/api/cron/meta');expect(r.status()).toBe(401)});
 
 test('global ranking API rejects unauthenticated access',async({request})=>{const r=await request.get('/api/ranking?since=2026-10-01&until=2026-10-28');expect(r.status()).toBe(403)});
+test('login highlights uploaded logo and respects reduced motion',async({page})=>{
+ const logo=await sharp({create:{width:900,height:600,channels:3,background:'#008cff'}}).png().toBuffer();await page.emulateMedia({reducedMotion:'reduce'});await page.route('**/api/brand/logo*',r=>r.fulfill({contentType:'image/png',body:logo}));
+ await page.goto('/');await expect(page.locator('.brand-hero img')).toBeVisible();await expect(page.locator('.technology-background')).toBeAttached();expect(await page.locator('.tech-grid').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+});
+test('profile and logo upload mutations reject foreign origins',async({request})=>{
+ for(const path of ['/api/profile','/api/profile/avatar','/api/brand/logo']){const r=await request.post(path,{headers:{origin:'https://untrusted.example'},data:{name:'Forbidden'}});expect(r.status()).toBe(403);}
+});
