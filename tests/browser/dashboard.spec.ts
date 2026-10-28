@@ -114,3 +114,14 @@ test('administrator can upload original brand art',async({page})=>{
  let uploaded=false;await page.route('**/api/brand/logo*',r=>r.request().method()==='POST'?(uploaded=true,r.fulfill({json:{ok:true}})):r.fulfill({status:404}));
  await mount(page,'admin');await page.getByRole('button',{name:'Meu perfil',exact:true}).click();await expect(page.getByRole('heading',{name:'Marca TechView'})).toBeVisible();await page.getByLabel('Selecionar logo TechView').setInputFiles({name:'logo.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=','base64')});await page.getByRole('button',{name:'Salvar logo TechView'}).click();await expect(page.getByRole('status')).toContainText('Alterações salvas');expect(uploaded).toBe(true);
 });
+for(const viewport of [{width:1440,height:738},{width:390,height:640},{width:844,height:390}])test(`logout remains reachable in short viewport ${viewport.width}x${viewport.height}`,async({page})=>{
+ await page.setViewportSize(viewport);let action='';await page.route('**/api/action',r=>{action=r.request().postDataJSON().action;return r.fulfill({json:{ok:true}})});await page.route('**/api/brand/logo*',r=>r.fulfill({status:404}));
+ await mount(page,'admin');const top=page.getByRole('button',{name:'Sair e trocar usuário',exact:true});await expect(top).toBeVisible();
+ if(viewport.width<=700)await page.getByRole('button',{name:'Abrir menu'}).click();
+ const logout=page.getByRole('button',{name:'Sair da conta',exact:true});await expect(logout).toBeVisible();const bounds=await logout.boundingBox();expect(bounds).not.toBeNull();expect(bounds!.y).toBeGreaterThanOrEqual(0);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(viewport.height);
+ const last=page.locator('.sidebar nav').getByRole('button',{name:'Meu perfil',exact:true});await last.scrollIntoViewIfNeeded();await expect(logout).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await logout.click();await expect(page.getByRole('heading',{name:'Acesse sua conta'})).toBeVisible();expect(action).toBe('logout');
+});
+test('top bar logout also returns to login without opening the mobile menu',async({page})=>{
+ await page.setViewportSize({width:390,height:640});await page.route('**/api/brand/logo*',r=>r.fulfill({status:404}));let action='';await page.route('**/api/action',r=>{action=r.request().postDataJSON().action;return r.fulfill({json:{ok:true}})});await mount(page,'client');await page.getByRole('button',{name:'Sair e trocar usuário'}).click();await expect(page.getByRole('heading',{name:'Acesse sua conta'})).toBeVisible();expect(action).toBe('logout');
+});
