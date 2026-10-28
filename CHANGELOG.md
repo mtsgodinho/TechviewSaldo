@@ -4,7 +4,7 @@ Consolidação em 28/10/2026.
 
 - Carteira individual por cliente: crédito adicionado, gasto em anúncios, taxa de 12%, total com taxa, valor já descontado e pendências.
 - Saldo líquido negativo destacado quando o gasto supera o crédito, sem transferir dívidas entre clientes.
-- Aviso destacado de dívida ao abrir o painel, com botão para gerar o Pix de recarga.
+- Aviso destacado de dívida ao abrir o painel, com botão para escolher livremente o valor da recarga antes de gerar o Pix.
 - Conciliação do gasto desde o início do dia de ativação da campanha, incluindo o gasto anterior ao vínculo naquele dia e sem repetir débitos.
 - Relatório individual por campanha, com seleção de cliente/campanha e cartões de gasto, **vendas no período**, impressões/cliques, CTR e CPC. Vendas também aparecem na tabela.
 - CPA por campanha e período: gasto em anúncios dividido por vendas atribuídas, sem a taxa de 12%. Sem vendas, mostra “—”.
@@ -19,6 +19,7 @@ Consolidação em 28/10/2026.
 - Administração de clientes com exclusão da lista ativa por arquivamento, confirmação de bloqueio, filtros de ativos/arquivados/todos e reativação, preservando o histórico.
 - Comprovante PDF TechView para recargas Pix confirmadas, com controle de acesso por cliente e validação do lançamento original, sem novo crédito ou SQL.
 - Recargas USDT na Polygon PoS com endereço público MetaMask, cotação manual em reais, QR do endereço, hash informado pelo cliente e confirmação administrativa idempotente por transferência. Exige o SQL único atualizado (migração 006).
+- O botão USDT da escolha de valor abre diretamente os dados do pagamento; mantém o formulário em caso de erro e reabre solicitações pendentes sem duplicá-las. Correção de interface sem SQL adicional.
 - Histórico financeiro, auditoria, permissões por usuário e proteção contra crédito/débito duplicado preservados.
 
 ## Ativação

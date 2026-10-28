@@ -5,9 +5,10 @@ import {Copy,Check,ExternalLink,RefreshCw,Wallet,X} from 'lucide-react';
 import {Client,Profile,money} from '@/lib/types';
 import {formatRate,formatUSDT,polygonLabels,polygonTransactionUrl,type PolygonSettings,type PolygonRequest} from '@/lib/polygon';
 type Data={settings:PolygonSettings|null;requests:PolygonRequest[]};
-export default function PolygonPanel({admin,ownId,clients,profiles,initialAmount='100'}:{admin:boolean;ownId:string;clients:Client[];profiles:Profile[];initialAmount?:string}){
+export default function PolygonPanel({admin,ownId,clients,profiles,initialAmount='100',checkoutRequest=null}:{admin:boolean;ownId:string;clients:Client[];profiles:Profile[];initialAmount?:string;checkoutRequest?:PolygonRequest|null}){
  const router=useRouter(),[data,setData]=useState<Data|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [amount,setAmount]=useState(initialAmount),[clientId,setClientId]=useState(''),[selected,setSelected]=useState<PolygonRequest|null>(null),[copied,setCopied]=useState('');
+ const [amount,setAmount]=useState(initialAmount),[clientId,setClientId]=useState(''),[selected,setSelected]=useState<PolygonRequest|null>(checkoutRequest),[copied,setCopied]=useState('');
+ useEffect(()=>{if(checkoutRequest)setSelected(checkoutRequest)},[checkoutRequest]);
  async function load(silent=false){if(!silent)setLoading(true);try{const r=await fetch('/api/polygon',{cache:'no-store'}),j=await r.json();if(!r.ok)throw new Error(j.error||'Não foi possível consultar USDT');setData(j);setError('');}catch(e){setError((e as Error).message);}finally{setLoading(false)}}
  useEffect(()=>{load();const timer=setInterval(()=>{if(document.visibilityState==='visible')load(true)},60000);return()=>clearInterval(timer)},[]);
  useEffect(()=>{setSelected(current=>{const latest=data?.requests.find(r=>r.id===current?.id);return current&&latest?{...latest,qr:current.qr}:current})},[data?.requests]);
