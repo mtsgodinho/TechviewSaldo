@@ -18,6 +18,7 @@ Consolidação em 28/10/2026.
 - Atalho no celular: botão de instalação no login e menu, orientações para navegadores sem instalação direta e ícones TechView na tela inicial.
 - Administração de clientes com exclusão da lista ativa por arquivamento, confirmação de bloqueio, filtros de ativos/arquivados/todos e reativação, preservando o histórico.
 - Comprovante PDF TechView para recargas Pix confirmadas, com controle de acesso por cliente e validação do lançamento original, sem novo crédito ou SQL.
+- Recargas USDT na Polygon PoS com endereço público MetaMask, cotação manual em reais, QR do endereço, hash informado pelo cliente e confirmação administrativa idempotente por transferência. Exige o SQL único atualizado (migração 006).
 - Histórico financeiro, auditoria, permissões por usuário e proteção contra crédito/débito duplicado preservados.
 
 ## Ativação

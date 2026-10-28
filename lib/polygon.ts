@@ -1,0 +1,12 @@
+import {getAddress} from 'ethers';
+export const POLYGON_CHAIN_ID=137;
+export type PolygonSettings={id:boolean;enabled:boolean;recipient_address:string;rate_micro_brl:number;minimum_cents:number;updated_at:string};
+export type PolygonRequest={id:string;client_id:string;created_by:string;amount_cents:number;rate_micro_brl:number;recipient_address:string;amount_units:string;network_id:number;token:string;status:'awaiting'|'informed'|'confirmed'|'rejected'|'cancelled';tx_hash:string|null;created_at:string;informed_at:string|null;reviewed_at:string|null;qr?:string};
+export const polygonLabels={awaiting:'Aguardando envio',informed:'Transferência informada',confirmed:'Crédito confirmado',rejected:'Rejeitada',cancelled:'Cancelada'};
+export function polygonAddress(value:string){try{const address=getAddress(value.trim());if(/^0x0{40}$/i.test(address))throw new Error();return address;}catch{throw new Error('Informe um endereço público válido da Polygon, iniciado por 0x');}}
+export function transactionHash(value:string){const hash=value.trim().toLowerCase();if(!/^0x[0-9a-f]{64}$/.test(hash)||/^0x0{64}$/.test(hash))throw new Error('Informe o hash completo da transferência (0x e 64 caracteres)');return hash;}
+export function parseRate(value:string){if(!/^\d{1,6}([.,]\d{1,6})?$/.test(value))throw new Error('Informe a cotação em reais com até seis casas decimais');const [whole,fraction='']=value.replace(',','.').split('.');const units=BigInt(whole)*1000000n+BigInt(fraction.padEnd(6,'0'));if(units<=0n)throw new Error('A cotação deve ser positiva');return Number(units);}
+export function formatRate(value:number){const units=BigInt(value);return `${units/1000000n}.${(units%1000000n).toString().padStart(6,'0')}`.replace(/0+$/,'').replace(/\.$/,'');}
+export function quotedUSDT(cents:number,rateMicro:number){if(!Number.isSafeInteger(cents)||cents<1||cents>99999999||!Number.isSafeInteger(rateMicro)||rateMicro<1||rateMicro>999999999999)throw new Error('Valor ou cotação inválida');const numerator=BigInt(cents)*10000000000n;return ((numerator+BigInt(rateMicro)-1n)/BigInt(rateMicro)).toString();}
+export function formatUSDT(value:string){if(!/^[1-9][0-9]{0,77}$/.test(value))throw new Error('Quantidade de USDT inválida');const units=BigInt(value);return `${units/1000000n}.${(units%1000000n).toString().padStart(6,'0')}`;}
+export function polygonTransactionUrl(hash:string){return `https://polygonscan.com/tx/${transactionHash(hash)}`;}
