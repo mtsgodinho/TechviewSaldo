@@ -1,7 +1,7 @@
 export type Profile={id:string;name:string;role:string;active:boolean;avatar_path?:string|null;phone?:string};
 export type Client={id:string;email:string;phone:string;created_at:string};
 export type Wallet={client_id:string;balance_cents:number};
-export type Transaction={id:string;client_id:string;type:string;amount_cents:number;description:string;balance_before:number;balance_after:number;occurred_on:string;created_at:string;actor_id:string;ad_spend_cents?:number;tax_cents?:number};
+export type Transaction={id:string;client_id:string;type:string;amount_cents:number;description:string;balance_before:number;balance_after:number;occurred_on:string;created_at:string;actor_id:string;pix_request_id?:string|null;ad_spend_cents?:number;tax_cents?:number};
 export type PixRequest={id:string;client_id:string;amount_cents:number;status:string;txid:string;payload:string;receiver_name:string;bank:string;created_at:string;qr?:string};
 export type Settings={bank:string;pix_key:string;receiver_name:string;city:string;minimum_cents:number};
 export type AppData={profile:Profile;profiles:Profile[];clients:Client[];wallets:Wallet[];transactions:Transaction[];requests:PixRequest[];settings:Settings|null;campaigns?:MetaCampaign[];metaAvailable?:boolean;accountEmail?:string;brandVersion?:string};

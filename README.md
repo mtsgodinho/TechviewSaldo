@@ -197,3 +197,9 @@ Se um atalho antigo mostrar apenas uma letra, remova-o da tela inicial, atualize
 Em **Clientes → Gerenciar → Excluir da lista / arquivar**, o administrador confirma o bloqueio do acesso e a remoção da lista ativa. A ação usa a inativação auditada já existente; não apaga usuários, carteiras, pagamentos, mensalidades, campanhas ou histórico. Não requer novo SQL. Na lista, o filtro **Arquivados / inativos** permite consultar o cadastro e reativá-lo em **Editar cliente → Cliente ativo**. O e-mail permanece associado ao mesmo cadastro.
 
 Arquivar não pausa campanhas da Meta nem impede a conciliação dos gastos em anúncios. O aviso da confirmação deixa isso explícito quando há campanhas vinculadas. Recargas e mensalidades pendentes continuam disponíveis ao administrador para conferência. As sugestões de funcionalidades futuras estão em `ROADMAP.md` e não representam funcionalidades já entregues.
+
+### Comprovante TechView de recarga Pix
+
+Recargas Pix confirmadas têm **Baixar comprovante** na lista de pagamentos/recargas, nos detalhes e nas movimentações vinculadas ao Pix. O PDF usa o símbolo TechView, valor creditado, nome atual do cadastro, data/hora da confirmação em São Paulo, recebedor e banco da solicitação original, TxID e protocolo interno. Não é comprovante bancário ou documento fiscal; não confirma identidade do pagador nem apresenta um identificador bancário E2E.
+
+O servidor exige usuário ativo, consulta a solicitação sob RLS e verifica o lançamento Pix correspondente na carteira, com mesmo cliente, valor e identificador. Solicitações aguardando, informadas ou rejeitadas não emitem comprovante. Clientes acessam apenas suas recargas; o administrador acessa as autorizadas pelo seu papel. A resposta é privada e sem cache, sem link público de comprovante. O download não altera saldos nem cria lançamentos e pode ser repetido. Não requer novo SQL. Mensalidades e créditos manuais não são apresentados como depósitos Pix nessa funcionalidade.

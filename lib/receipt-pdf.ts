@@ -1,0 +1,32 @@
+import {PDFDocument,rgb} from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
+import type {Receipt} from './receipt';
+import {money} from './types';
+export async function receiptPDF(receipt:Receipt,symbol:Uint8Array){
+ const pdf=await PDFDocument.create();pdf.setTitle('TechView Saldo — Comprovante de recarga Pix');pdf.setAuthor('TechView');pdf.setSubject(`Confirmação de crédito ${receipt.id}`);pdf.setCreator('TechView Saldo');pdf.setCreationDate(new Date(receipt.confirmed_at));pdf.setModificationDate(new Date(receipt.confirmed_at));
+ pdf.registerFontkit(fontkit);
+ const [regularBytes,boldBytes]=await Promise.all([readFile(path.join(process.cwd(),'assets/fonts/LiberationSans-Regular.ttf')),readFile(path.join(process.cwd(),'assets/fonts/LiberationSans-Bold.ttf'))]);
+ const page=pdf.addPage([420,640]),font=await pdf.embedFont(regularBytes,{subset:true}),bold=await pdf.embedFont(boldBytes,{subset:true}),icon=await pdf.embedPng(symbol);
+ const navy=rgb(.03,.055,.09),blue=rgb(0,.52,.85),cyan=rgb(0,.77,.92),ink=rgb(.09,.15,.22),muted=rgb(.34,.41,.49),line=rgb(.86,.9,.94);
+ const supported=new Set(font.getCharacterSet());
+ const safe=(value:string)=>Array.from(value.normalize('NFC').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\u00a0/g,' ')).map(c=>supported.has(c.codePointAt(0)!)?c:'?').join('');
+ const text=(value:string,x:number,y:number,size=10,heavy=false,color=ink)=>page.drawText(safe(value),{x,y,size,font:heavy?bold:font,color});
+ const wrapped=(value:string,maxWidth:number,size:number)=>{const lines:string[]=[];let current='';for(const char of safe(value)){if(font.widthOfTextAtSize(current+char,size)>maxWidth&&current){lines.push(current.trim());current=char;}else current+=char;}if(current)lines.push(current.trim());return lines;};
+ page.drawRectangle({x:0,y:0,width:420,height:640,color:rgb(1,1,1)});page.drawRectangle({x:0,y:532,width:420,height:108,color:navy});page.drawRectangle({x:0,y:528,width:420,height:4,color:cyan});
+ page.drawImage(icon,{x:27,y:550,width:70,height:70});text('TECHVIEW',110,585,25,true,rgb(1,1,1));text('S A L D O',112,565,9,false,cyan);
+ text('COMPROVANTE DE RECARGA PIX',32,497,10,true,muted);text('Crédito confirmado no painel',32,476,11,false,muted);
+ const amount=money(receipt.amount_cents);let amountSize=34;while(bold.widthOfTextAtSize(safe(amount),amountSize)>350)amountSize--;
+ text(amount,32,430,amountSize,true,blue);
+ page.drawRectangle({x:32,y:398,width:356,height:1,color:line});
+ let y=373;
+ const row=(label:string,value:string,size=11)=>{text(label.toUpperCase(),32,y,8,true,muted);y-=17;for(const part of wrapped(value,350,size)){text(part,32,y,size);y-=size+4;}y-=12;};
+ row('Cliente do cadastro',receipt.client_name);row('Confirmado em',new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'}).format(new Date(receipt.confirmed_at))+' • São Paulo');
+ row('Recebedor',receipt.receiver_name+' • '+receipt.bank);row('Identificador Pix',receipt.txid,10);row('Protocolo TechView',receipt.id,9);
+ page.drawRectangle({x:32,y:82,width:356,height:1,color:line});
+ text('Crédito interno para anúncios • confirmação manual do Pix.',32,62,8,false,muted);
+ text('Não substitui comprovante bancário ou documento fiscal.',32,48,8,false,muted);
+ text('Este documento não altera o saldo nem gera novo lançamento.',32,34,8,false,muted);
+ return pdf.save();
+}

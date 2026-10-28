@@ -2,6 +2,10 @@ import {test,expect,type Page} from '@playwright/test';
 import {build} from 'esbuild';
 import {pixPayload} from '../../lib/pix';
 import QRCode from 'qrcode';
+import {readFile} from 'node:fs/promises';
+import {readReceipt} from '../../lib/receipt';
+import {receiptPDF} from '../../lib/receipt-pdf';
+import {confirmedRequest,receiptTransaction,receiptId} from '../fixtures/receipt';
 const client='22222222-2222-4222-8222-222222222222',admin='11111111-1111-4111-8111-111111111111';
 const profiles=[{id:client,name:'Cliente de teste',role:'client',active:true},{id:admin,name:'Administrador de teste',role:'admin',active:true}];
 const fixture={profiles,clients:[{id:client,email:'cliente@example.com',phone:'11999999999',created_at:'2026-10-28T12:00:00Z'}],wallets:[{client_id:client,balance_cents:25000}],transactions:[],requests:[],settings:{pix_key:'pix@example.com',receiver_name:'TECHVIEW TESTE',city:'SAO PAULO',bank:'Nubank',minimum_cents:100}};
@@ -158,4 +162,16 @@ for(const width of [1440,390])test(`administrator archives a client with confirm
 test('failed archiving keeps the client visible; clients have no archive controls',async({page})=>{
  await page.route('**/api/action',r=>r.fulfill({status:400,json:{error:'Não foi possível arquivar'}}));await mount(page,'admin');await page.getByRole('button',{name:'Clientes',exact:true}).click();await page.getByRole('button',{name:'Gerenciar',exact:true}).click();await page.getByRole('button',{name:'Excluir da lista / arquivar',exact:true}).click();await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Confirmar arquivamento',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Não foi possível arquivar');await page.getByRole('button',{name:'Cancelar',exact:true}).click();await page.getByRole('button',{name:'Voltar aos clientes',exact:true}).click();await expect(page.locator('tbody tr')).toHaveCount(1);
  await mount(page,'client');await expect(page.getByRole('button',{name:'Excluir da lista / arquivar',exact:true})).toHaveCount(0);
+});
+
+for(const role of ['admin','client'] as const)test(`${role} downloads a personalized receipt only for confirmed Pix`,async({page})=>{
+ await page.setViewportSize({width:390,height:900});const receipt=await readReceipt(receiptId,{request:async()=>confirmedRequest,transaction:async()=>receiptTransaction,clientName:async()=> 'Cliente de teste'});const pdf=await receiptPDF(receipt,await readFile('public/icons/techview-192.png'));let calls=0;
+ await page.route('**/api/receipts/*',r=>{calls++;expect(r.request().method()).toBe('GET');expect(r.request().url()).toContain(receiptId);return r.fulfill({contentType:'application/pdf',body:Buffer.from(pdf)})});
+ const request={...confirmedRequest,payload:'PIX TESTE',created_at:'2026-10-28T18:00:00Z'};
+ await mount(page,role,{requests:[request,{...request,id:'88888888-8888-4888-8888-888888888888',status:'informed'}],transactions:[{...receiptTransaction,description:'Recarga Pix',balance_before:0,balance_after:15009,actor_id:admin,occurred_on:'2026-10-28'}]});await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('button',{name:role==='admin'?/^Pagamentos Pix/:'Minhas recargas',exact:true}).click();await expect(page.getByRole('button',{name:'Baixar comprovante',exact:true})).toHaveCount(1);
+ const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Baixar comprovante',exact:true}).click();const download=await downloading;expect(download.suggestedFilename()).toBe(`TechView-comprovante-${receiptId}.pdf`);expect((await readFile((await download.path())!)).subarray(0,5).toString()).toBe('%PDF-');expect(calls).toBe(1);
+ await page.getByRole('button',{name:'Detalhes',exact:true}).first().click();await expect(page.getByRole('dialog').getByRole('button',{name:'Baixar comprovante',exact:true})).toBeVisible();await page.getByRole('button',{name:'Fechar',exact:true}).click();await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('button',{name:'Movimentações',exact:true}).click();await expect(page.getByRole('button',{name:'Baixar comprovante',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+test('receipt download failure shows an error without creating a file',async({page})=>{
+ await page.route('**/api/receipts/*',r=>r.fulfill({status:409,json:{error:'O comprovante fica disponível após a confirmação do Pix'}}));await mount(page,'client',{requests:[{...confirmedRequest,payload:'PIX TESTE',created_at:'2026-10-28T18:00:00Z'}]});await page.getByRole('button',{name:'Minhas recargas',exact:true}).click();let downloads=0;page.on('download',()=>downloads++);await page.getByRole('button',{name:'Baixar comprovante',exact:true}).click();await expect(page.getByRole('alert')).toContainText('após a confirmação');expect(downloads).toBe(0);
 });

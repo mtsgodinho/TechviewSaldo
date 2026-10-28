@@ -20,6 +20,13 @@ test('PostgreSQL: RLS, manual Pix confirmation, idempotency, balance, inactive a
  await db.exec(`set request.jwt.claim.sub='${admin}';select review_payment('${id}',true);select review_payment('${id}',true);`);
  assert.equal(Number((await db.query<{balance_cents:number}>(`select balance_cents from wallets where client_id='${client}'`)).rows[0].balance_cents),20000);
  assert.equal((await db.query('select * from wallet_transactions')).rows.length,1);
+ await db.exec(`set request.jwt.claim.sub='${other}';`);
+ assert.equal((await db.query(`select id from pix_requests where id='${id}'`)).rows.length,0);
+ assert.equal((await db.query(`select id from wallet_transactions where pix_request_id='${id}'`)).rows.length,0);
+ await db.exec(`set request.jwt.claim.sub='${client}';`);
+ const receiptRows=await db.query(`select p.status,p.reviewed_at,t.amount_cents from pix_requests p join wallet_transactions t on t.pix_request_id=p.id where p.id='${id}'`);
+ assert.equal(receiptRows.rows.length,1);assert.equal(receiptRows.rows[0].status,'confirmed');assert.ok(receiptRows.rows[0].reviewed_at);assert.equal(Number(receiptRows.rows[0].amount_cents),20000);
+ await db.exec(`set request.jwt.claim.sub='${admin}';`);
  const op='44444444-4444-4444-8444-444444444444';
  await db.exec(`select adjust_wallet('${client}',15000,'meta_ads','Recarga anúncios','2026-10-28','${op}');select adjust_wallet('${client}',15000,'meta_ads','Recarga anúncios','2026-10-28','${op}');`);
  assert.equal(Number((await db.query<{balance_cents:number}>(`select balance_cents from wallets where client_id='${client}'`)).rows[0].balance_cents),5000);

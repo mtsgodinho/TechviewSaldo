@@ -26,3 +26,5 @@ test('monthly API protects administrative changes and foreign origins',async({re
 
 // next start usa --hostname 0.0.0.0; esta é a origem de req.url no servidor local.
 test('archiving clients rejects an unauthenticated caller',async({request,baseURL})=>{const r=await request.post('/api/action',{headers:{origin:`http://0.0.0.0:${new URL(baseURL!).port}`},data:{action:'archiveClient',id:'22222222-2222-4222-8222-222222222222'}});expect(r.status()).toBe(400);expect((await r.json()).error).toBe('Sessão expirada')});
+
+test('receipt API requires an authenticated session and never caches private responses',async({request})=>{const r=await request.get('/api/receipts/66666666-6666-4666-8666-666666666666');expect(r.status()).toBe(403);expect(r.headers()['cache-control']).toContain('no-store');expect((await r.json()).error).toContain('Entre na sua conta')});
