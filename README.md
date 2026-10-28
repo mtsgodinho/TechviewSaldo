@@ -93,3 +93,31 @@ Os testes verificam login desktop/celular, ausência de transbordamento horizont
 5. Faça uma recarga pequena com chave real: abra o QR Code no banco, confira recebedor e valor, pague e somente então confirme manualmente pelo painel.
 
 Nenhum deploy, projeto Supabase, usuário remoto ou pagamento é criado automaticamente por estes arquivos. Configure backups e retenção adequados no Supabase antes de usar dados reais.
+
+## Integração Meta Ads (migração 002)
+
+A regra financeira agora é **gasto da campanha**, individual por cliente: R$ 100 de crédito e R$ 30 de gasto novo deixam R$ 70 disponíveis. Enviar dinheiro para a conta compartilhada da Meta não é um débito adicional. Pix continua com confirmação manual.
+
+### Ativação em um banco já existente
+
+1. Faça backup e execute **somente** `supabase/migrations/002_meta.sql` uma vez no SQL Editor. A migração é transacional, cria a tabela/RLS e funções da integração e substitui a função de ajuste com proteção contra lançamento Meta duplicado. Não execute novamente `schema.sql` em produção.
+2. No servidor/Vercel, configure `META_ACCESS_TOKEN` com acesso `ads_read`, `META_AD_ACCOUNT_ID` com os números da conta (sem `act_`) e `CRON_SECRET` com um segredo aleatório de pelo menos 32 caracteres. Nenhum usa `NEXT_PUBLIC_`. Não guarde tokens no Git ou em chat. O token da ferramenta de desenvolvedor pode expirar; para operação contínua, configure uma credencial de usuário do sistema com acesso à conta e acompanhe revogações/expiração.
+3. Faça deploy, entre como administrador e abra **Campanhas Meta → Buscar campanhas da Meta**. Escolha campanha e cliente e confirme a propriedade exclusiva. Uma campanha não pode pertencer a mais de um cliente. Campanhas sem vínculo nunca alteram carteiras. Trocar a conta do servidor não transfere vínculos.
+4. Ao vincular, o sistema registra o gasto, impressões e cliques já informados naquele dia como referência inicial. A partir daí só a diferença nova entra nas métricas e nos débitos. O vínculo é permanente nesta versão para preservar a contabilidade. Para corrigir um vínculo equivocado, não reutilize a campanha: é necessária uma migração revisada com conciliação.
+5. Clique em **Atualizar métricas** e valide o primeiro lançamento com o relatório da Meta. O saldo pode aparecer reservado se houver gasto pendente de desconto; valores pendentes são conciliados na próxima sincronização após recarga.
+
+### Frequência e limitações
+
+- Com uma sessão aberta em aba visível, o app solicita sincronização ao entrar e a cada **5 minutos**. O backend evita consultas repetidas dentro de cinco minutos; o administrador pode atualizar manualmente. O painel financeiro relê dados a cada 30 segundos.
+- O cron de `vercel.json` roda **uma vez ao dia, às 09h de São Paulo**, compatível com a frequência diária do plano Hobby. Requer `CRON_SECRET`. O endpoint protegido é `GET /api/cron/meta`, com cabeçalho `Authorization: Bearer <CRON_SECRET>`. Sem segredo, retorna 401 e não faz lançamentos.
+- Para sincronização a cada 5 minutos **mesmo sem ninguém com o site aberto**, configure um agendador externo com HTTPS e cabeçalho secreto (por exemplo, um plano gratuito que suporte essa frequência) para chamar esse endpoint. O cron diário sozinho não garante atualização em cinco minutos. Não coloque o segredo na URL. O app não configura contas externas nem presume a disponibilidade de serviços gratuitos.
+- O aviso de **saldo disponível ≤ R$ 20** aparece para cada cliente com botão de recarga. Não pausa campanhas e não representa o saldo/cobrança da conta Meta.
+- Relatórios da Meta têm atraso e podem sofrer revisões. Referência inicial exclui o gasto já informado ao vincular, mas eventos anteriores reportados com atraso podem entrar posteriormente; revise a conciliação inicial. Gasto negativo/reduzido não gera estorno automático: o maior gasto observado é mantido e a campanha mostra aviso para revisão. Faça estorno manual documentado quando necessário.
+- A API usa a versão v24.0, conta BRL e fuso America/Sao_Paulo. Consultas usam intervalo fixo desde o dia de ativação, dentro da janela histórica permitida pela Meta; campanhas muito antigas requerem revisão/arquivamento antes do limite de retenção da API. Métricas disponíveis nesta versão: gasto, impressões, cliques, CTR e CPC desde o vínculo. Alcance, leads e vendas não são inferidos de cliques.
+- Cada atualização bloqueia campanha e carteira em transação. Repetição ou resposta antiga não duplica o débito. Se a Meta gastar além do crédito, o banco debita somente o disponível e preserva o restante como gasto pendente, sem saldo negativo. Recargas posteriores conciliam esse pendente. O aplicativo não interrompe a veiculação na Meta.
+- Tokens permanecem no servidor. RLS entrega ao cliente somente seus vínculos/métricas. Apenas o backend pode criar vínculos e aplicar observações; o cliente não informa valores de gasto. Ações automáticas registram o administrador que ativou o vínculo e a origem Meta na auditoria.
+- Não registre abastecimentos como gasto manual para clientes integrados: isso descontaria duas vezes. A RPC rejeita o tipo Meta manual se o cliente tem campanhas vinculadas. Outros ajustes continuam exigindo motivo e auditoria.
+
+### Verificações antes de liberar
+
+`npm run test` executa também casos de baseline, gasto por cliente, repetição, resposta fora de ordem, saldo insuficiente, conciliação após crédito e RLS da integração em PostgreSQL de teste. Nunca execute fixtures contra produção. Compare a consulta real de gastos com a Meta e faça o vínculo de cada campanha conscientemente; instalar a integração não atribui campanhas automaticamente.

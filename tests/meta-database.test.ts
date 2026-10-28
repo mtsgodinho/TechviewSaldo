@@ -1,0 +1,28 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+const admin='11111111-1111-4111-8111-111111111111',client='22222222-2222-4222-8222-222222222222',other='33333333-3333-4333-8333-333333333333';
+test('Meta ledger: per-client isolation, baseline, retries, stale samples, overspend and settlement',async()=>{
+ const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;`);
+ await db.exec(await readFile(new URL('../supabase/schema.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/002_meta.sql',import.meta.url),'utf8'));
+ await db.exec(`insert into auth.users values('${admin}'),('${client}'),('${other}');insert into profiles(id,name,role) values('${admin}','Admin','admin');set role authenticated;set request.jwt.claim.sub='${admin}';select register_client('${client}','Cliente','cliente@example.com','');select register_client('${other}','Outro','outro@example.com','');select adjust_wallet('${client}',10000,'manual_credit','Crédito inicial','2026-10-28',gen_random_uuid());reset role;`);
+ await db.exec(`select bind_meta_campaign('123','456','${client}','Campanha cliente','2026-10-28',50000,1000,10,now()-interval '5 minutes','${admin}');select bind_meta_campaign('789','456','${other}','Campanha outro','2026-10-28',10000,500,5,now()-interval '5 minutes','${admin}');`);
+ await assert.rejects(db.exec(`select bind_meta_campaign('123','456','${other}','Duplicada','2026-10-28',0,0,0,now(),'${admin}')`),/duplicate/);
+ const balance=async(id:string)=>Number((await db.query<{balance_cents:number}>(`select balance_cents from wallets where client_id='${id}'`)).rows[0].balance_cents);
+ await db.exec(`select apply_meta_snapshot('123',53000,1200,20,now()-interval '3 minutes');select apply_meta_snapshot('123',53000,1200,20,now()-interval '3 minutes');`);
+ assert.equal(await balance(client),7000);assert.equal(await balance(other),0);
+ await db.exec(`select apply_meta_snapshot('123',60000,1400,30,now()-interval '4 minutes')`);assert.equal(await balance(client),7000);
+ await db.exec(`select apply_meta_snapshot('123',65000,1800,40,now()-interval '2 minutes')`);assert.equal(await balance(client),0);
+ const c=(await db.query<{observed_cents:number;baseline_cents:number;charged_cents:number}>(`select * from meta_campaigns where id='123'`)).rows[0];assert.equal(Number(c.observed_cents)-Number(c.baseline_cents)-Number(c.charged_cents),5000);
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${admin}';select adjust_wallet('${client}',8000,'manual_credit','Nova recarga','2026-10-28',gen_random_uuid());`);
+ await assert.rejects(db.exec(`select adjust_wallet('${client}',100,'meta_ads','Duplicaria o gasto','2026-10-28',gen_random_uuid())`),/gasto automático/);
+ await db.exec(`reset role;select apply_meta_snapshot('123',65000,1800,40,now()-interval '1 minutes')`);assert.equal(await balance(client),3000);
+ await db.exec(`select apply_meta_snapshot('123',64000,1700,39,now())`);assert.equal(await balance(client),3000);
+ const total=await db.query<{total:number}>(`select -sum(amount_cents) total from wallet_transactions where type='meta_ads' and client_id='${client}'`);assert.equal(Number(total.rows[0].total),15000);
+ await db.exec(`set role authenticated;set request.jwt.claim.sub='${client}'`);assert.equal((await db.query('select * from meta_campaigns')).rows.length,1);
+ await assert.rejects(db.exec(`select apply_meta_snapshot('123',99999,2000,50,now())`),/permission denied/);
+ await assert.rejects(db.exec(`update meta_campaigns set observed_cents=0`),/permission denied/);
+ await db.close();
+});
