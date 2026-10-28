@@ -23,3 +23,6 @@ test('profile and logo upload mutations reject foreign origins',async({request})
 test('monthly API protects administrative changes and foreign origins',async({request})=>{
  const get=await request.get('/api/monthly');expect(get.status()).toBe(403);const post=await request.post('/api/monthly',{headers:{origin:'https://untrusted.example'},data:{action:'confirm',id:'test'}});expect(post.status()).toBe(403);
 });
+
+// next start usa --hostname 0.0.0.0; esta é a origem de req.url no servidor local.
+test('archiving clients rejects an unauthenticated caller',async({request,baseURL})=>{const r=await request.post('/api/action',{headers:{origin:`http://0.0.0.0:${new URL(baseURL!).port}`},data:{action:'archiveClient',id:'22222222-2222-4222-8222-222222222222'}});expect(r.status()).toBe(400);expect((await r.json()).error).toBe('Sessão expirada')});

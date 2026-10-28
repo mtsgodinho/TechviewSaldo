@@ -26,8 +26,17 @@ test('PostgreSQL: RLS, manual Pix confirmation, idempotency, balance, inactive a
  await assert.rejects(db.exec(`select adjust_wallet('${client}',6000,'manual_debit','Débito inválido','2026-10-28','55555555-5555-4555-8555-555555555555')`),/Saldo insuficiente/);
  assert.equal((await db.query('select * from wallet_transactions')).rows.length,2);
  assert.ok((await db.query('select * from audit_logs')).rows.length>=5);
- await db.exec(`select edit_client('${client}','Cliente','',false);set request.jwt.claim.sub='${client}';`);
+ await db.exec(`set request.jwt.claim.sub='${client}';`);
+ await assert.rejects(db.exec(`select edit_client('${other}','Outro','',false)`),/Acesso não autorizado/);
+ await db.exec(`set request.jwt.claim.sub='${admin}';select edit_client('${client}','Cliente','',false);`);
+ assert.equal(Number((await db.query<{balance_cents:number}>(`select balance_cents from wallets where client_id='${client}'`)).rows[0].balance_cents),5000);
+ assert.equal((await db.query('select * from wallet_transactions')).rows.length,2);
+ assert.equal((await db.query('select * from pix_requests')).rows.length,1);
+ await db.exec(`set request.jwt.claim.sub='${client}';`);
  assert.equal((await db.query('select * from wallets')).rows.length,0);
  await assert.rejects(db.exec(`select inform_payment('${id}')`),/Acesso não autorizado/);
+ await db.exec(`set request.jwt.claim.sub='${admin}';select edit_client('${client}','Cliente','',true);set request.jwt.claim.sub='${client}';`);
+ assert.equal(Number((await db.query<{balance_cents:number}>('select balance_cents from wallets')).rows[0].balance_cents),5000);
+ assert.equal((await db.query('select * from wallet_transactions')).rows.length,2);
  await db.close();
 });

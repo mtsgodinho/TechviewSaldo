@@ -9,7 +9,7 @@ export async function POST(req:Request){
  if(req.headers.get('origin')!==new URL(req.url).origin) return NextResponse.json({error:'Origem inválida'},{status:403});
  const b=await req.json();const action=z.string().parse(b.action);
  if(action==='login'){const db=await supabase();const {error}=await db.auth.signInWithPassword({email:z.email().parse(b.email),password:z.string().min(1).max(200).parse(b.password)});if(error)throw new Error('E-mail ou senha inválidos');return NextResponse.json({ok:true});}
- const admin=['settings','createClient','editClient','resetPassword','adjust','confirm','reject'].includes(action);
+ const admin=['settings','createClient','editClient','archiveClient','resetPassword','adjust','confirm','reject'].includes(action);
  const {db,user}=await actor(admin);
  if(action==='logout'){await db.auth.signOut();return NextResponse.json({ok:true});}
  if(action==='pix'){
@@ -26,6 +26,11 @@ export async function POST(req:Request){
  const email=z.email().parse(b.email),name=z.string().trim().min(2).max(100).parse(b.name),phone=z.string().max(30).parse(b.phone||''),password=z.string().min(12).max(128).parse(b.password);
  const svc=service();const {data,error}=await svc.auth.admin.createUser({email,password,email_confirm:true});if(error)throw error;
  const {error:e}=await db.rpc('register_client',{p_id:data.user.id,p_name:name,p_email:email,p_phone:phone});if(e){await svc.auth.admin.deleteUser(data.user.id);throw e;}
+ }
+ else if(action==='archiveClient'){
+ const id=z.uuid().parse(b.id);const [{data:c,error:ce},{data:p,error:pe}]=await Promise.all([db.from('clients').select('phone').eq('id',id).maybeSingle(),db.from('profiles').select('name').eq('id',id).eq('role','client').maybeSingle()]);
+ if(ce||pe||!c||!p)throw new Error('Cliente não encontrado');
+ const {error}=await db.rpc('edit_client',{p_id:id,p_name:p.name,p_phone:c.phone,p_active:false});if(error)throw error;
  }
  else if(action==='editClient'){const {error}=await db.rpc('edit_client',{p_id:z.uuid().parse(b.id),p_name:z.string().min(2).max(100).parse(b.name),p_phone:z.string().max(30).parse(b.phone),p_active:z.boolean().parse(b.active)});if(error)throw error;}
  else if(action==='resetPassword'){const id=z.uuid().parse(b.id);const {data:c}=await db.from('clients').select('id').eq('id',id).single();if(!c)throw new Error('Cliente não encontrado');const {error}=await service().auth.admin.updateUserById(id,{password:z.string().min(12).max(128).parse(b.password)});if(error)throw error;await db.rpc('log_access_reset',{p_id:id});}

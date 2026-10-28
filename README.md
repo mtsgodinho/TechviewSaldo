@@ -191,3 +191,9 @@ O botão **Instalar no celular** aparece no login e no menu interno. Em navegado
 Android: abra o painel no Chrome, menu ⋮ → Adicionar à tela inicial ou Instalar aplicativo. iPhone: abra no Safari, Compartilhar → Adicionar à Tela de Início. O botão desaparece ao abrir no modo standalone. O atalho requer internet e mantém a autenticação normal. Não há cache offline de dados financeiros, notificações push ou novo SQL.
 
 Se um atalho antigo mostrar apenas uma letra, remova-o da tela inicial, atualize o site no navegador e adicione o atalho novamente para carregar o novo ícone TechView.
+
+### Excluir da lista / arquivar clientes
+
+Em **Clientes → Gerenciar → Excluir da lista / arquivar**, o administrador confirma o bloqueio do acesso e a remoção da lista ativa. A ação usa a inativação auditada já existente; não apaga usuários, carteiras, pagamentos, mensalidades, campanhas ou histórico. Não requer novo SQL. Na lista, o filtro **Arquivados / inativos** permite consultar o cadastro e reativá-lo em **Editar cliente → Cliente ativo**. O e-mail permanece associado ao mesmo cadastro.
+
+Arquivar não pausa campanhas da Meta nem impede a conciliação dos gastos em anúncios. O aviso da confirmação deixa isso explícito quando há campanhas vinculadas. Recargas e mensalidades pendentes continuam disponíveis ao administrador para conferência. As sugestões de funcionalidades futuras estão em `ROADMAP.md` e não representam funcionalidades já entregues.
