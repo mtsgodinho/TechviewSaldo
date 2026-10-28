@@ -1,3 +1,11 @@
+# TECHVIEW SALDO V1.3
+
+- Pagamento em USDT na Polygon com conversão automática pelo dólar comercial USD/BRL, usando 1 USDT = 1 USD como referência.
+- Fonte e horário visíveis; atualização na aba a cada 30 segundos e nova consulta ao gerar uma solicitação.
+- Cotação, quantidade de USDT e crédito em reais fixados por solicitação; recargas anteriores mantidas e confirmação manual preservada.
+- Sem criação de novas recargas com fonte indisponível ou cotação com mais de 10 minutos. Campo de cotação manual removido.
+- Ativação: executar o SQL único atualizado (inclui migração 007). A cotação ao vivo depende da disponibilidade da AwesomeAPI; teste externo bloqueado pela rede deste ambiente.
+
 # TECHVIEW SALDO V1.2
 
 Consolidação em 28/10/2026.

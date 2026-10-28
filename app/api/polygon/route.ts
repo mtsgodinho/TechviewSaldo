@@ -1,7 +1,8 @@
 import {NextResponse} from 'next/server';
-import {actor} from '@/lib/supabase';
+import {actor,service} from '@/lib/supabase';
+import {fetchPolygonRate} from '@/lib/polygon-rate';
 import {parseCents} from '@/lib/pix';
-import {parseRate,polygonAddress,transactionHash,type PolygonRequest} from '@/lib/polygon';
+import {polygonAddress,transactionHash,type PolygonRequest} from '@/lib/polygon';
 import {z} from 'zod';
 import QRCode from 'qrcode';
 const headers={'Cache-Control':'private, no-store'};
@@ -16,11 +17,17 @@ export async function POST(req:Request){let authorized=false;try{
  const b=await req.json(),action=z.enum(['settings','create','inform','confirm','reject','cancel']).parse(b.action);const {db,user,profile}=await actor(['settings','confirm','reject'].includes(action));authorized=true;
  if(action==='settings'){
   const address=polygonAddress(z.string().parse(b.address));if(address!==polygonAddress(z.string().parse(b.confirm_address)))throw new Error('A confirmação do endereço não confere');
-  const {error}=await db.rpc('save_polygon_settings',{p_address:address,p_rate:parseRate(z.string().parse(b.rate)),p_minimum:parseCents(z.string().parse(b.minimum)),p_enabled:z.boolean().parse(b.enabled)});if(error)throw new Error(error.message);
+  const {error}=await db.rpc('configure_polygon_receiving',{p_address:address,p_minimum:parseCents(z.string().parse(b.minimum)),p_enabled:z.boolean().parse(b.enabled)});if(error)throw new Error(error.message);
  }else if(action==='create'){
   const client=profile.role==='admin'?z.uuid().parse(b.client_id):user.id;
-  const {data,error}=await db.rpc('create_polygon_request',{p_client:client,p_cents:parseCents(z.string().parse(b.amount))}).single<PolygonRequest>();if(error)throw new Error(error.message);
-  return NextResponse.json({ok:true,request:{...data,qr:await QRCode.toDataURL(data.recipient_address,{width:320,margin:2})}},{headers});
+  const cents=parseCents(z.string().parse(b.amount));
+  const {data:pending,error:pendingError}=await db.from('polygon_requests').select('*').eq('client_id',client).in('status',['awaiting','informed']).maybeSingle<PolygonRequest>();if(pendingError)throw new Error('Não foi possível consultar a solicitação USDT');
+  let request=pending;
+  if(!request){
+   const quote=await fetchPolygonRate();
+   const {data,error}=await service(10000).rpc('create_polygon_request_at_rate',{p_actor:user.id,p_client:client,p_cents:cents,p_rate:quote.rate_micro_brl,p_quoted_at:quote.quoted_at,p_source:quote.source}).single<PolygonRequest>();if(error)throw new Error('Não foi possível gerar a recarga. Confira se o SQL único atualizado foi aplicado.');request=data;
+  }
+  return NextResponse.json({ok:true,request:{...request,qr:await QRCode.toDataURL(request.recipient_address,{width:320,margin:2})}},{headers});
  }else if(action==='inform'){
   const {error}=await db.rpc('inform_polygon_payment',{p_id:z.uuid().parse(b.id),p_hash:transactionHash(z.string().parse(b.hash))});if(error)throw new Error(error.message);
  }else if(action==='cancel'){

@@ -30,3 +30,5 @@ test('archiving clients rejects an unauthenticated caller',async({request,baseUR
 test('receipt API requires an authenticated session and never caches private responses',async({request})=>{const r=await request.get('/api/receipts/66666666-6666-4666-8666-666666666666');expect(r.status()).toBe(403);expect(r.headers()['cache-control']).toContain('no-store');expect((await r.json()).error).toContain('Entre na sua conta')});
 
 test('Polygon API rejects anonymous access and foreign-origin mutations',async({request})=>{const get=await request.get('/api/polygon');expect(get.status()).toBe(403);expect(get.headers()['cache-control']).toContain('no-store');const post=await request.post('/api/polygon',{headers:{origin:'https://untrusted.example'},data:{action:'confirm',id:'test'}});expect(post.status()).toBe(403);expect((await post.json()).error).toBe('Origem inválida')});
+
+test('automatic dollar rate API requires authentication and disables caching',async({request})=>{const r=await request.get('/api/polygon/rate');expect(r.status()).toBe(403);expect(r.headers()['cache-control']).toContain('no-store')});
