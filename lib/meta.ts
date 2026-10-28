@@ -26,14 +26,15 @@ export async function snapshot(id:string,since:string){
  const today=accountDate();const response=await metaGet<{data:{spend?:string;impressions?:string;clicks?:string}[]}>(`${id}/insights`,{fields:'spend,impressions,clicks',time_range:JSON.stringify({since,until:today}),limit:'1'});
  const row=response.data[0];return {spend:metaCents(row?.spend||'0'),impressions:counter(row?.impressions),clicks:counter(row?.clicks),sampled:new Date().toISOString()};
 }
+async function requireBillingSchema(){const {error}=await service().from('meta_campaigns').select('charged_tax_cents').limit(0);if(error)throw new Error('Aplique a migração 003_meta_activation_day.sql para ativar o gasto do dia com taxa de 12%.');}
 export async function bindCampaign(id:string,client:string,admin:string){
- await verifyAccount();const c=await metaGet<{id:string;name:string;account_id:string}>(id,{fields:'id,name,account_id'});
+ await requireBillingSchema();await verifyAccount();const c=await metaGet<{id:string;name:string;account_id:string}>(id,{fields:'id,name,account_id'});
  if(c.account_id!==metaAccount())throw new Error('Campanha não pertence à conta configurada');
  const date=accountDate(),s=await snapshot(id,date);const {error}=await service().rpc('bind_meta_campaign',{p_id:c.id,p_account:metaAccount(),p_client:client,p_name:c.name,p_date:date,p_spend:s.spend,p_impressions:s.impressions,p_clicks:s.clicks,p_sampled:s.sampled,p_admin:admin});
  if(error)throw new Error(error.code==='23505'?'Campanha já vinculada. Uma campanha só pode pertencer a um cliente.':error.message);
 }
 export async function syncCampaigns(client?:string,force=false){
- const db=service();let query=db.from('meta_campaigns').select('*').order('id');if(client)query=query.eq('client_id',client);
+ await requireBillingSchema();const db=service();let query=db.from('meta_campaigns').select('*').order('id');if(client)query=query.eq('client_id',client);
  const {data,error}=await query;if(error)throw new Error('Aplique a migração 002_meta.sql no Supabase antes de sincronizar');
  const campaigns=(data||[]) as MetaCampaign[];let updated=0,failed=0,debited=0;const errors:string[]=[];
  if(!campaigns.length)return {updated,failed,debited,errors};try{await verifyAccount();}catch(e){const message=e instanceof Error?e.message:'Falha no acesso à Meta';await db.from('meta_campaigns').update({last_error:message}).in('id',campaigns.map(c=>c.id));throw e;}

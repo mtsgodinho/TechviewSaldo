@@ -121,3 +121,17 @@ A regra financeira agora é **gasto da campanha**, individual por cliente: R$ 10
 ### Verificações antes de liberar
 
 `npm run test` executa também casos de baseline, gasto por cliente, repetição, resposta fora de ordem, saldo insuficiente, conciliação após crédito e RLS da integração em PostgreSQL de teste. Nunca execute fixtures contra produção. Compare a consulta real de gastos com a Meta e faça o vínculo de cada campanha conscientemente; instalar a integração não atribui campanhas automaticamente.
+
+### Atualização 003: histórico, dia de ativação e taxa de 12%
+
+Execute `supabase/migrations/003_meta_activation_day.sql` **uma vez após a 002**, no SQL Editor, com tradução automática desativada. Não reaplique `schema.sql`. A migração adiciona o detalhamento de principal/taxa, atualiza o cálculo transacional e concilia o gasto do dia de ativação dos vínculos existentes de 28/10/2026, conforme autorização. Não cobra dias anteriores à ativação. Faz débito apenas da diferença que ainda não foi paga; se faltar crédito, preserva a pendência. Tudo ocorre na mesma transação. Não é uma migração para reexecução: repetir o arquivo gera erro de coluna existente; repetir uma sincronização é idempotente.
+
+A taxa de **12% foi informada pelo administrador como regra deste negócio**, não é descoberta ou validada pela API. É calculada sobre o gasto acumulado contabilizável de cada campanha, em centavos, arredondando meio centavo para cima; não se arredonda a taxa isoladamente em cada atualização. Total devido = gasto + taxa. Cada lançamento guarda valor de anúncios, taxa, saldos anterior/posterior e auditoria. Débitos já feitos são preservados e conciliados, sem cobrar tudo novamente.
+
+Exemplo: R$ 90 de crédito, R$ 13,53 de gasto, R$ 1,62 de taxa → total de R$ 15,15 e saldo de R$ 74,85. Se R$ 0,18 já foram debitados, a migração debita somente R$ 14,97. Gasto além do crédito fica pendente, sem saldo negativo; crédito posterior liquida principal e depois taxa. O aviso de R$ 20 usa o saldo individual após reservar pendências.
+
+A visão geral administrativa agora destaca um card por cliente com crédito adicionado, gasto, taxa, total, valor já descontado, pendência e saldo disponível. O detalhe do cliente e seu próprio login mostram a mesma carteira individual. Nenhum saldo é transferido entre clientes.
+
+Os relatórios têm Hoje (padrão), Ontem, Esta semana (segunda a domingo), 7, 15 e 30 dias (incluem hoje), Este mês e datas personalizadas, limitadas aos últimos 36 meses e à disponibilidade da Meta. Fuso America/Sao_Paulo. Clientes consultam apenas campanhas vinculadas ao próprio perfil. O histórico pode anteceder o vínculo: ele não subtrai a referência inicial e não gera débitos ao trocar filtros. Gasto em anúncios, taxa estimada do período e total com taxa aparecem separados. A taxa do relatório é arredondada por campanha/período; a carteira usa o acumulado contabilizável desde a ativação, portanto diferenças de um centavo entre recortes são possíveis e não são novos lançamentos.
+
+O bloco Crédito e gasto das campanhas mostra valores financeiros acumulados desde a ativação, sem mudar com o filtro histórico. Erros de relatório aparecem como indisponibilidade, sem apresentar zeros falsos ou resultados do período anterior. Depois de aplicar a 003 e publicar o código, compare os saldos com o histórico antes de vincular novas campanhas.

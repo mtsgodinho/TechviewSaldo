@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {taxCents,campaignBill} from '../lib/meta-billing';
+test('12 percent is rounded on cumulative campaign spend, in cents',()=>{assert.equal(taxCents(10000),1200);assert.equal(taxCents(1353),162);assert.equal(taxCents(5),1);assert.equal(taxCents(4),0);assert.throws(()=>taxCents(-1));assert.deepEqual(campaignBill({observed_cents:1353,baseline_cents:0,charged_cents:18}),{spend:1353,tax:162,total:1515,pending:1497});});

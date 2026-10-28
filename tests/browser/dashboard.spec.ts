@@ -32,16 +32,38 @@ test('administrator manages client, records Meta Ads and tests Pix settings',asy
 
 for(const width of [1440,390]){
  test(`low balance warning and individual campaign metrics ${width}px`,async({page})=>{
- await page.setViewportSize({width,height:1000});await page.route('**/api/meta',r=>r.fulfill({json:{ok:true,updated:0,failed:0,errors:[]}}));
+ await page.setViewportSize({width,height:1000});await page.route('**/api/meta*',r=>r.fulfill({json:r.request().method()==='GET'?{rows:[{id:'123',spend_cents:1353,impressions:443,clicks:3}],queried_at:new Date().toISOString()}:{ok:true,updated:0,failed:0,errors:[]}}));
  await mount(page,'client',{wallets:[{client_id:client,balance_cents:2000}],metaAvailable:true,campaigns:[{id:'123',account_id:'456',client_id:client,name:'Campanha exclusiva',started_on:'2026-10-28',bound_at:'2026-10-28T12:00:00Z',baseline_cents:50000,observed_cents:53000,charged_cents:3000,baseline_impressions:1000,baseline_clicks:10,impressions:1200,clicks:20,sampled_at:new Date().toISOString(),last_error:null}]});
  await expect(page.getByText('Seu saldo está baixo:',{exact:false})).toBeVisible();await expect(page.getByRole('button',{name:'Recarregar via Pix'})).toBeVisible();
  if(width===390)await page.getByRole('button',{name:'Abrir menu'}).click();
- await page.getByRole('button',{name:'Minhas campanhas',exact:true}).click();await expect(page.getByRole('heading',{name:'Campanhas Meta Ads'})).toBeVisible();await expect(page.getByText('Campanha exclusiva',{exact:true})).toBeVisible();await expect(page.getByText('R$ 30,00',{exact:true})).toHaveCount(2);
+ await page.getByRole('button',{name:'Minhas campanhas',exact:true}).click();await expect(page.getByRole('heading',{name:'Campanhas Meta Ads'})).toBeVisible();await expect(page.getByText('Campanha exclusiva',{exact:true})).toBeVisible();await expect(page.getByText('R$ 13,53',{exact:true})).toHaveCount(3);await expect(page.locator('.tax-summary')).toContainText('R$ 1,62');await expect(page.locator('.tax-summary')).toContainText('R$ 15,15');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:`/tmp/techview-meta-${width}.png`,fullPage:true});
  });
 }
 test('administrator binds a remote campaign to the chosen client',async({page})=>{
- let submitted:Record<string,unknown>={};await page.route('**/api/meta',r=>{if(r.request().method()==='GET')return r.fulfill({json:{campaigns:[{id:'123',name:'Campanha nova'}]}});submitted=r.request().postDataJSON();return r.fulfill({json:{ok:true}})});
+ let submitted:Record<string,unknown>={};await page.route('**/api/meta*',r=>{if(r.request().url().includes('action=insights'))return r.fulfill({json:{rows:[],queried_at:new Date().toISOString()}});if(r.request().method()==='GET')return r.fulfill({json:{campaigns:[{id:'123',name:'Campanha nova'}]}});submitted=r.request().postDataJSON();return r.fulfill({json:{ok:true}})});
  await mount(page,'admin',{metaAvailable:true,campaigns:[]});await page.getByRole('button',{name:'Campanhas Meta',exact:true}).click();await page.getByRole('button',{name:'Buscar campanhas da Meta'}).click();await page.getByLabel('Campanha',{exact:true}).selectOption('123');await page.getByLabel('Cliente',{exact:true}).selectOption(client);await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Vincular campanha',exact:true}).click();await expect(page.getByRole('status')).toContainText('Campanha vinculada');expect(submitted).toEqual({action:'bind',campaign_id:'123',client_id:client});
+});
+
+test('historical shortcuts and custom dates read reports without triggering a debit',async({page})=>{
+ const requests:{method:string;url:string}[]=[];
+ await page.route('**/api/meta*',r=>{requests.push({method:r.request().method(),url:r.request().url()});return r.fulfill({json:{rows:[{id:'123',spend_cents:1452,impressions:592,clicks:14}],queried_at:new Date().toISOString()}})});
+ await mount(page,'client',{metaAvailable:true,campaigns:[]});await page.getByRole('button',{name:'Minhas campanhas',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Hoje',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByText('R$ 14,52',{exact:true}).first()).toBeVisible();
+ for(const name of ['Ontem','Esta semana','7 dias','15 dias','30 dias','Este mês']){
+  await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('button',{name,exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByText('R$ 14,52',{exact:true}).first()).toBeVisible();
+ }
+ await page.getByLabel('Data inicial das métricas').fill('2026-09-01');await page.getByLabel('Data final das métricas').fill('2026-09-30');await page.getByRole('button',{name:'Aplicar período'}).click();await expect(page.getByText('R$ 14,52',{exact:true}).first()).toBeVisible();
+ expect(requests.some(r=>r.url.includes('since=2026-09-01')&&r.url.includes('until=2026-09-30'))).toBe(true);expect(requests.every(r=>r.method==='GET'&&r.url.includes('action=insights'))).toBe(true);
+ await page.getByLabel('Data inicial das métricas').fill('2026-10-01');await page.getByRole('button',{name:'Aplicar período'}).click();await expect(page.getByRole('alert')).toContainText('data inicial deve ser anterior');
+});
+
+test('administrator overview separates each client wallet instead of an aggregate balance',async({page})=>{
+ const other='33333333-3333-4333-8333-333333333333';
+ await mount(page,'admin',{profiles:[...profiles,{id:other,name:'Outro cliente',role:'client',active:true}],clients:[...fixture.clients,{id:other,email:'outro@example.com',phone:'',created_at:'2026-10-28T12:00:00Z'}],wallets:[{client_id:client,balance_cents:9000},{client_id:other,balance_cents:5000}]});
+ await expect(page.locator('.client-wallet')).toHaveCount(2);
+ await expect(page.locator('.client-wallet').filter({hasText:'Cliente de teste'}).locator('.individual-balance')).toHaveText('R$ 90,00');
+ await expect(page.locator('.client-wallet').filter({hasText:'Outro cliente'}).locator('.individual-balance')).toHaveText('R$ 50,00');
+ await expect(page.getByText('SALDO TOTAL DISPONÍVEL',{exact:true})).toHaveCount(0);
 });

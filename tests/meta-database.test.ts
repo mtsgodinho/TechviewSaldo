@@ -26,3 +26,20 @@ test('Meta ledger: per-client isolation, baseline, retries, stale samples, overs
  await assert.rejects(db.exec(`update meta_campaigns set observed_cents=0`),/permission denied/);
  await db.close();
 });
+test('activation-day reconciliation debits only missing spend and is repeatable',async()=>{
+ const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
+ await db.exec(await readFile(new URL('../supabase/schema.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/002_meta.sql',import.meta.url),'utf8'));
+ await db.exec(`insert into auth.users values('${admin}'),('${client}'),('${other}');insert into profiles(id,name,role) values('${admin}','Admin','admin'),('${client}','Cliente','client'),('${other}','Outro','client');insert into clients(id,email) values('${client}','a@example.com'),('${other}','b@example.com');insert into wallets values('${client}',9000),('${other}',10000);select bind_meta_campaign('123','456','${client}','Vini','2026-10-28',1335,100,2,now()-interval '5 minutes','${admin}');select apply_meta_snapshot('123',1353,105,2,now());`);
+ const balance=async(id:string)=>Number((await db.query<{balance_cents:number}>(`select balance_cents from wallets where client_id='${id}'`)).rows[0].balance_cents);
+ assert.equal(await balance(client),8982);
+ const migration=await readFile(new URL('../supabase/migrations/003_meta_activation_day.sql',import.meta.url),'utf8');await db.exec(migration);
+ assert.equal(await balance(client),7485);assert.equal(await balance(other),10000);assert.equal((await db.query('select * from wallet_transactions')).rows.length,2);
+ await db.exec(`select apply_meta_snapshot('123',1353,105,2,now())`);assert.equal(await balance(client),7485);assert.equal((await db.query('select * from wallet_transactions')).rows.length,2);
+ await db.exec(`select bind_meta_campaign('789','456','${other}','Outra campanha','2026-10-29',2000,50,1,now(),'${admin}');select apply_meta_snapshot('789',2500,60,2,now());`);
+ assert.equal(await balance(other),7200);assert.equal(await balance(client),7485);
+ const parts=(await db.query<{spend:number;tax:number}>(`select sum(ad_spend_cents) spend,sum(tax_cents) tax from wallet_transactions where client_id='${other}'`)).rows[0];assert.equal(Number(parts.spend),2500);assert.equal(Number(parts.tax),300);
+ await db.exec(`select apply_meta_snapshot('123',10000,300,10,now())`);assert.equal(await balance(client),0);
+ await db.exec(`update wallets set balance_cents=3000 where client_id='${client}';select apply_meta_snapshot('123',10000,300,10,now());select apply_meta_snapshot('123',10000,300,10,now())`);assert.equal(await balance(client),800);
+ const paid=(await db.query<{spend:number;tax:number}>(`select sum(ad_spend_cents) spend,sum(tax_cents) tax from wallet_transactions where client_id='${client}'`)).rows[0];assert.equal(Number(paid.spend),10000);assert.equal(Number(paid.tax),1200);await db.close();
+});

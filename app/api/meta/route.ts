@@ -1,9 +1,23 @@
 import {NextResponse} from 'next/server';
 import {actor} from '@/lib/supabase';
-import {remoteCampaigns,bindCampaign,syncCampaigns} from '@/lib/meta';
+import {remoteCampaigns,bindCampaign,syncCampaigns,metaAccount,metaGet} from '@/lib/meta';
 import {z} from 'zod';
+import {validatePeriod} from '@/lib/meta-period';
+import {readCampaignReport} from '@/lib/meta-report';
 export const maxDuration=60;
-export async function GET(){try{await actor(true);return NextResponse.json({campaigns:await remoteCampaigns()},{headers:{'Cache-Control':'no-store'}});}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Falha ao consultar campanhas'},{status:400});}}
+export async function GET(req:Request){try{
+ const params=new URL(req.url).searchParams;
+ if(params.get('action')==='insights'){
+  const {db}=await actor();const period=validatePeriod(params.get('since')||'',params.get('until')||'');
+  // A lista de IDs vem do banco sob RLS, nunca de parâmetros do navegador.
+  const scope=params.get('client');if(scope)z.uuid().parse(scope);
+  const campaigns:{id:string;account_id:string}[]=[];
+  for(let offset=0;;offset+=500){let query=db.from('meta_campaigns').select('id,account_id').order('id').range(offset,offset+499);if(scope)query=query.eq('client_id',scope);const {data,error}=await query;if(error)throw new Error('Não foi possível consultar as campanhas vinculadas');campaigns.push(...(data||[]));if((data?.length||0)<500)break;}
+  const rows=await readCampaignReport(campaigns,metaAccount(),period,(id,range)=>metaGet(`${id}/insights`,{fields:'spend,impressions,clicks',time_range:JSON.stringify(range),limit:'1'}));
+  return NextResponse.json({period,rows,queried_at:new Date().toISOString()},{headers:{'Cache-Control':'private, no-store'}});
+ }
+ await actor(true);return NextResponse.json({campaigns:await remoteCampaigns()},{headers:{'Cache-Control':'no-store'}});
+ }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Falha ao consultar campanhas'},{status:400});}}
 export async function POST(req:Request){try{
  if(req.headers.get('origin')!==new URL(req.url).origin)return NextResponse.json({error:'Origem inválida'},{status:403});
  const body=await req.json();const action=z.enum(['bind','sync']).parse(body.action);const {user,profile}=await actor(action==='bind');
