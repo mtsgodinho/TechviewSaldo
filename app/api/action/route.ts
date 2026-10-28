@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {actor,service,supabase} from '@/lib/supabase';
-import {parseCents,pixPayload} from '@/lib/pix';
+import {parseCents,pixPayload,rechargeCents} from '@/lib/pix';
 import QRCode from 'qrcode';
 import {z} from 'zod';
 import type {PixRequest} from '@/lib/types';
@@ -13,7 +13,7 @@ export async function POST(req:Request){
  const {db,user}=await actor(admin);
  if(action==='logout'){await db.auth.signOut();return NextResponse.json({ok:true});}
  if(action==='pix'){
- const cents=parseCents(b.amount);const {data:settings,error}=await service().from('pix_settings').select('*').eq('id',true).single();if(error||!settings)throw new Error('O administrador ainda não configurou o Pix');if(cents<settings.minimum_cents)throw new Error(`Valor mínimo: R$ ${(settings.minimum_cents/100).toFixed(2)}`);
+ const requestedCents=parseCents(b.amount);const {data:settings,error}=await service().from('pix_settings').select('*').eq('id',true).single();if(error||!settings)throw new Error('O administrador ainda não configurou o Pix');const cents=rechargeCents(requestedCents,Number(settings.minimum_cents),b.ensure_minimum===true);if(cents<settings.minimum_cents)throw new Error(`Valor mínimo: R$ ${(settings.minimum_cents/100).toFixed(2)}`);
  const txid=crypto.randomUUID().replaceAll('-','').slice(0,25);const payload=pixPayload({key:settings.pix_key,name:settings.receiver_name,city:settings.city,cents,txid});
  const {data,error:e}=await service().rpc('create_pix_request',{p_client:user.id,p_cents:cents,p_txid:txid,p_payload:payload,p_receiver:settings.receiver_name,p_bank:settings.bank,p_settings_version:settings.updated_at}).single<PixRequest>();if(e)throw e;
  return NextResponse.json({ok:true,request:{...data,qr:await QRCode.toDataURL(payload,{errorCorrectionLevel:'M',margin:2,width:320})}});

@@ -13,3 +13,8 @@ export function pixPayload(input:{key:string;name:string;city:string;cents:numbe
  return base+crc16(base);
 }
 export function parseCents(value:string) { if(!/^\d{1,6}([.,]\d{1,2})?$/.test(value)) throw new Error('Informe um valor válido, com até duas casas decimais'); const [a,b='']=value.replace(',','.').split('.'); const cents=Number(a)*100+Number(b.padEnd(2,'0')); if(cents<=0) throw new Error('O valor deve ser positivo'); return cents; }
+
+export function rechargeCents(requested:number,minimum:number,ensureMinimum=false){
+ if(!Number.isSafeInteger(requested)||requested<=0||!Number.isSafeInteger(minimum)||minimum<=0)throw new Error('Valor de recarga inválido');
+ return ensureMinimum?Math.max(requested,minimum):requested;
+}

@@ -84,3 +84,21 @@ test('ranking failures never display fabricated zeros or stale podium; clients h
  await page.route('**/api/ranking*',r=>r.fulfill({status:400,json:{error:'Token da Meta indisponível'}}));await mount(page,'admin');await page.getByRole('button',{name:'Ranking de vendas',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Token da Meta indisponível');await expect(page.locator('.ranking-totals')).toHaveCount(0);await expect(page.locator('.ranking-podium')).toHaveCount(0);
  await mount(page,'client');await expect(page.getByRole('button',{name:'Ranking de vendas',exact:true})).toHaveCount(0);
 });
+for(const width of [1440,390])test(`individual debt is negative in overview, client detail, list and client login ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});
+ const campaign={id:'123',account_id:'456',client_id:client,name:'Campanha teste',started_on:'2026-10-28',bound_at:'2026-10-28T12:00:00Z',baseline_cents:0,observed_cents:1962,charged_cents:0,baseline_impressions:0,baseline_clicks:0,impressions:100,clicks:2,sampled_at:new Date().toISOString(),last_error:null};
+ const extra={wallets:[{client_id:client,balance_cents:0}],campaigns:[campaign],metaAvailable:false};
+ await mount(page,'admin',extra);
+ await expect(page.locator('.individual-balance')).toHaveText('-R$ 21,97');await expect(page.locator('.individual-balance')).toHaveClass(/negative-balance/);await expect(page.getByText('Saldo devedor • recarga necessária')).toBeVisible();
+ if(width===390)await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('button',{name:'Clientes',exact:true}).click();await expect(page.locator('tbody td strong.negative-balance')).toHaveText('-R$ 21,97');
+ await page.getByRole('button',{name:'Gerenciar',exact:true}).click();await expect(page.locator('.balance-value')).toHaveText('-R$ 21,97');
+ await mount(page,'client',extra);await expect(page.locator('.balance-value')).toHaveText('-R$ 21,97');await expect(page.getByText('Seu saldo está negativo:',{exact:false})).toBeVisible();await expect(page.getByRole('button',{name:'Recarregar via Pix'})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+for(const width of [1440,390])test(`negative balance opens a prominent warning and generates Pix directly ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});let requestBody:Record<string,unknown>={};
+ const payload=pixPayload({key:'pix@example.com',name:'TECHVIEW TESTE',city:'SAO PAULO',cents:2197,txid:'QUITAR2197'});
+ await page.route('**/api/action',async r=>{requestBody=r.request().postDataJSON();await r.fulfill({json:{ok:true,request:{id:'66666666-6666-4666-8666-666666666666',client_id:client,amount_cents:2197,status:'awaiting',txid:'QUITAR2197',payload,receiver_name:'TECHVIEW TESTE',bank:'Nubank',created_at:new Date().toISOString(),qr:await QRCode.toDataURL(payload)}}})});
+ await mount(page,'client',{wallets:[{client_id:client,balance_cents:0}],campaigns:[{id:'123',account_id:'456',client_id:client,name:'Campanha teste',baseline_cents:0,observed_cents:1962,charged_cents:0,baseline_impressions:0,baseline_clicks:0,impressions:100,clicks:2,bound_at:'2026-10-28T12:00:00Z',started_on:'2026-10-28',sampled_at:new Date().toISOString(),last_error:null}],metaAvailable:false});
+ const dialog=page.getByRole('dialog',{name:'Saldo negativo',exact:true});await expect(dialog).toBeVisible();await expect(dialog.getByRole('heading',{name:'Sua carteira está negativa'})).toBeVisible();await expect(dialog.locator('.debt-amount')).toHaveText('-R$ 21,97');
+ await page.getByRole('button',{name:'Fazer recarga via Pix',exact:true}).click();await expect(page.getByAltText('QR Code Pix com valor e recebedor')).toBeVisible();await expect(page.getByRole('heading',{name:'R$ 21,97'})).toBeVisible();expect(requestBody).toEqual({action:'pix',amount:'21.97',ensure_minimum:true});await expect(page.locator('.balance-value')).toHaveText('-R$ 21,97');
+});
