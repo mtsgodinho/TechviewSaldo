@@ -1,14 +1,31 @@
 # TECHVIEW SALDO V1.2
 
-- Carteiras individuais no painel administrativo, com crédito, gasto, taxa de 12%, total, débito registrado e pendência.
-- Conciliação do gasto desde o início do dia de ativação, sem repetir valores já debitados. Proteção contra saldo negativo e preservação de gasto pendente.
-- Histórico da Meta com datas personalizadas e atalhos de período; consultas históricas não geram débitos.
-- Ranking administrativo de leads e compras atribuídos pela Meta: pódio, busca, ordenação, paginação e filtros.
-- Um SQL de atualização: `supabase/ATUALIZACAO_UNICA.sql`, para o banco inicial existente ou já atualizado com 002/003. Reexecução completa sem cobrança duplicada.
-- Vínculos exclusivos de campanha por cliente, permissões no servidor e RLS preservadas. Pix continua com confirmação manual.
+Consolidação em 28/10/2026.
+
+- Carteira individual por cliente: crédito adicionado, gasto em anúncios, taxa de 12%, total com taxa, valor já descontado e pendências.
+- Saldo líquido negativo destacado quando o gasto supera o crédito, sem transferir dívidas entre clientes.
+- Aviso destacado de dívida ao abrir o painel, com botão para gerar o Pix de recarga.
+- Conciliação do gasto desde o início do dia de ativação da campanha, incluindo o gasto anterior ao vínculo naquele dia e sem repetir débitos.
+- Relatório individual por campanha, com seleção de cliente/campanha e cartões de gasto, **vendas no período**, impressões/cliques, CTR e CPC. Vendas também aparecem na tabela.
+- Filtros Hoje, Ontem, Esta semana, 7, 15 e 30 dias, Este mês e intervalo personalizado. Alterar filtros não altera a carteira.
+- Vendas vêm dos eventos de compra atribuídos pela Meta, com a mesma regra do ranking e sem somar agregados e subtipos duplicados. Ausência de compra informa zero; falha de consulta informa erro.
+- Ranking administrativo de leads e vendas atribuídos pela Meta, com pódio, busca, ordenação, paginação e filtros de data.
+- Mensalidade com preço individual, QR Code/copia e cola Pix, informação de pagamento e confirmação manual pelo administrador. O mês começa na confirmação, separado do crédito de anúncios.
+- Meu perfil: edição de nome e telefone, envio e remoção de foto.
+- Logo TechView no login e no painel, com fundo tecnológico animado no login e respeito à preferência por movimento reduzido.
+- Sair da conta acessível no rodapé do menu e no topo, inclusive em telas pequenas.
+- Histórico financeiro, auditoria, permissões por usuário e proteção contra crédito/débito duplicado preservados.
 
 ## Ativação
 
-Execute apenas o SQL único, em uma nova consulta no Supabase, com tradução automática desativada. Ele preserva registros existentes e pode conciliar gastos e taxa pendentes conforme a regra autorizada. Não reaplique `schema.sql` nem acrescente os SQLs antigos. Aguarde a Vercel concluir o deploy e confira cada carteira e ranking.
+Para bancos existentes, execute somente `supabase/ATUALIZACAO_UNICA.sql` no SQL Editor do Supabase com a tradução automática desativada. O arquivo detecta as migrações 002 a 005 já presentes e instala apenas as ausentes. Preserva registros e não duplica lançamentos ao ser executado integralmente de novo. Não reaplique `schema.sql`. Se o SQL único atualizado já foi aplicado, a inclusão das vendas no relatório não exige outra alteração no banco.
 
-A sincronização financeira ocorre a cada cinco minutos com aba visível; execução contínua sem sessões exige agendamento externo. A taxa de 12% é a regra informada pelo administrador. Métricas/eventos dependem do token e da atribuição/rastreamento da Meta e podem chegar com atraso. O ranking não representa confirmação de venda pelo CRM nem altera saldo.
+Aguarde o deploy da Vercel chegar a **Ready** e atualize o painel. Validação desta consolidação: 25 testes de regras/banco, cinco testes de interface das campanhas em desktop/celular e compilação de produção aprovados. Testes de interface usam respostas simuladas; não comprovam pagamento bancário ou disponibilidade da Meta em produção.
+
+## Regras de operação
+
+Pix de recarga e mensalidade continuam dependendo da conferência no extrato e confirmação manual. Mensalidade não credita a carteira de anúncios. O vencimento não bloqueia o login nem pausa campanhas. O aplicativo não transfere dinheiro automaticamente para a Meta.
+
+A taxa de 12% é a regra informada pelo administrador. Eventos de venda/leads dependem do rastreamento e da atribuição da Meta e podem sofrer atraso ou revisão. Não representam confirmação de pagamento pelo CRM.
+
+A sincronização financeira ocorre a cada cinco minutos com aba visível. Sem sessões abertas, o cron diário depende de configuração; frequência contínua de cinco minutos exige agendamento externo.
