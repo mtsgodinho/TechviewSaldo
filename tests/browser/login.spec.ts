@@ -32,3 +32,5 @@ test('receipt API requires an authenticated session and never caches private res
 test('Polygon API rejects anonymous access and foreign-origin mutations',async({request})=>{const get=await request.get('/api/polygon');expect(get.status()).toBe(403);expect(get.headers()['cache-control']).toContain('no-store');const post=await request.post('/api/polygon',{headers:{origin:'https://untrusted.example'},data:{action:'confirm',id:'test'}});expect(post.status()).toBe(403);expect((await post.json()).error).toBe('Origem inválida')});
 
 test('automatic dollar rate API requires authentication and disables caching',async({request})=>{const r=await request.get('/api/polygon/rate');expect(r.status()).toBe(403);expect(r.headers()['cache-control']).toContain('no-store')});
+
+test('automation API protects client debt and mutations',async({request})=>{const r=await request.get('/api/automation');expect(r.status()).toBe(403);expect(r.headers()['cache-control']).toContain('no-store');const post=await request.post('/api/automation',{headers:{origin:'https://untrusted.example'},data:{action:'sync'}});expect(post.status()).toBe(403)});

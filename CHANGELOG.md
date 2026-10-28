@@ -4,7 +4,8 @@
 - Fonte e horário visíveis; atualização na aba a cada 30 segundos e nova consulta ao gerar uma solicitação.
 - Cotação, quantidade de USDT e crédito em reais fixados por solicitação; recargas anteriores mantidas e confirmação manual preservada.
 - Sem criação de novas recargas com fonte indisponível ou cotação com mais de 10 minutos. Campo de cotação manual removido.
-- Ativação: executar o SQL único atualizado (inclui migração 007). A cotação ao vivo depende da disponibilidade da AwesomeAPI; teste externo bloqueado pela rede deste ambiente.
+- Avisos individuais de saldo negativo por Evolution e pausa confirmada na Meta ao consultar carteira ≤ −R$ 20,00, incluindo a taxa de 12%. Requer Evolution configurada, autorização de WhatsApp por cliente, ads_management e agendamento externo a cada minuto para operar sem painel aberto.
+- Ativação: executar o SQL único atualizado (inclui migrações 007 e 008). A cotação ao vivo depende da disponibilidade da AwesomeAPI; teste externo bloqueado pela rede deste ambiente.
 
 # TECHVIEW SALDO V1.2
 

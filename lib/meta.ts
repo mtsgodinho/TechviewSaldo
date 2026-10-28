@@ -1,4 +1,5 @@
 import 'server-only';
+import {runBalanceControls} from '@/lib/balance-automations';
 import {service} from '@/lib/supabase';
 import {metaCents,counter,accountDate} from '@/lib/meta-values';
 import type {MetaCampaign} from '@/lib/types';
@@ -11,6 +12,10 @@ export async function metaGet<T>(path:string,params:Record<string,string>={}):Pr
  const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(20000)});
  const body=await r.json();if(!r.ok||body.error){const code=body.error?.code;throw new Error(code===190?'O token da Meta expirou ou foi revogado. Renove o token no servidor.':`A Meta recusou a consulta (código ${Number(code)||r.status}). Verifique a permissão ads_read e o acesso à conta.`);}
  return body as T;
+}
+async function metaPause(id:string):Promise<{success:boolean}>{
+ if(!/^\d+$/.test(id))throw new Error('Campanha inválida');const token=process.env.META_ACCESS_TOKEN;if(!token)throw new Error('Configure META_ACCESS_TOKEN no servidor');
+ const response=await fetch(`https://graph.facebook.com/${VERSION}/${id}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({status:'PAUSED'}),cache:'no-store',signal:AbortSignal.timeout(10000)});const body=await response.json();if(!response.ok||body.error)throw new Error('Não foi possível pausar na Meta. Confira ads_management e o acesso à conta de anúncios.');return {success:body.success===true};
 }
 export async function remoteCampaigns(){
  const account=metaAccount();await verifyAccount();
@@ -32,18 +37,20 @@ export async function bindCampaign(id:string,client:string,admin:string){
  if(c.account_id!==metaAccount())throw new Error('Campanha não pertence à conta configurada');
  const date=accountDate(),s=await snapshot(id,date);const {error}=await service().rpc('bind_meta_campaign',{p_id:c.id,p_account:metaAccount(),p_client:client,p_name:c.name,p_date:date,p_spend:s.spend,p_impressions:s.impressions,p_clicks:s.clicks,p_sampled:s.sampled,p_admin:admin});
  if(error)throw new Error(error.code==='23505'?'Campanha já vinculada. Uma campanha só pode pertencer a um cliente.':error.message);
+ await syncCampaigns(client);
 }
 export async function syncCampaigns(client?:string,force=false){
- await requireBillingSchema();const db=service();let query=db.from('meta_campaigns').select('*').order('id');if(client)query=query.eq('client_id',client);
- const {data,error}=await query;if(error)throw new Error('Aplique a migração 002_meta.sql no Supabase antes de sincronizar');
- const campaigns=(data||[]) as MetaCampaign[];let updated=0,failed=0,debited=0;const errors:string[]=[];
+ await requireBillingSchema();const db=service();const campaigns:MetaCampaign[]=[];
+ for(let offset=0;;offset+=500){let query=db.from('meta_campaigns').select('*').order('id').range(offset,offset+499);if(client)query=query.eq('client_id',client);const {data,error}=await query;if(error)throw new Error('Aplique a migração 002_meta.sql no Supabase antes de sincronizar');campaigns.push(...(data||[]) as MetaCampaign[]);if((data?.length||0)<500)break;}
+ let updated=0,failed=0,debited=0;const errors:string[]=[];
  if(!campaigns.length)return {updated,failed,debited,errors};try{await verifyAccount();}catch(e){const message=e instanceof Error?e.message:'Falha no acesso à Meta';await db.from('meta_campaigns').update({last_error:message}).in('id',campaigns.map(c=>c.id));throw e;}
  for(const c of campaigns){
-  if(!force&&Date.now()-new Date(c.sampled_at).getTime()<5*60*1000)continue;
+  if(!force&&Date.now()-new Date(c.sampled_at).getTime()<60*1000)continue;
   try{
    if(c.account_id!==metaAccount())throw new Error('A campanha usa outra conta. Não altere a conta vinculada no servidor.');
    const s=await snapshot(c.id,c.started_on);const {data:amount,error:e}=await db.rpc('apply_meta_snapshot',{p_id:c.id,p_spend:s.spend,p_impressions:s.impressions,p_clicks:s.clicks,p_sampled:s.sampled});if(e)throw new Error('Não foi possível registrar a sincronização no banco');updated++;debited+=Number(amount||0);
   }catch(e){failed++;const message=e instanceof Error?e.message:'Falha ao sincronizar';errors.push(message);await db.from('meta_campaigns').update({last_error:message}).eq('id',c.id);}
  }
- return {updated,failed,debited,errors:[...new Set(errors)]};
+ const automation=await runBalanceControls(campaigns,metaAccount(),{get:id=>metaGet(id,{fields:'id,account_id,status'}),pause:metaPause});
+ return {updated,failed,debited,automation,errors:[...new Set([...errors,...automation.errors])]};
 }
