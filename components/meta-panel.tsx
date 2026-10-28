@@ -7,6 +7,7 @@ import {taxCents,campaignBill} from '@/lib/meta-billing';
 import {presetPeriod,validatePeriod,type Period,type PeriodPreset,type CampaignReport} from '@/lib/meta-period';
 const presets:{id:PeriodPreset;label:string}[]=[{id:'today',label:'Hoje'},{id:'yesterday',label:'Ontem'},{id:'week',label:'Esta semana'},{id:'7',label:'7 dias'},{id:'15',label:'15 dias'},{id:'30',label:'30 dias'},{id:'month',label:'Este mês'}];
 const displayDate=(date:string)=>date.split('-').reverse().join('/');
+const displayCPA=(spend:number,sales:number|undefined)=>sales!==undefined&&sales>0?money(Math.round(spend/sales)):'—';
 export default function MetaPanel({campaigns,profiles,clients,admin,available,clientId}:{campaigns:MetaCampaign[];profiles:Profile[];clients:Client[];admin:boolean;available:boolean;clientId?:string}){
  const router=useRouter();
  const [remote,setRemote]=useState<{id:string;name:string}[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -64,6 +65,7 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
     <div className="overview-grid campaign-metrics" aria-busy={loading}>
      <section className="mini-stat"><TrendingUp className="cyan"/><p>Gasto no período</p><strong>{ready?money(spend):'—'}</strong><small>Gasto total informado pela Meta nas datas selecionadas</small></section>
      <section className="mini-stat campaign-sales" aria-label="Vendas no período"><p>Vendas no período</p><strong>{ready&&sales!==undefined?sales.toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}</strong><small>{ready&&sales!==undefined?(saleEvent?'Compras atribuídas pela Meta no período':'Nenhum evento de compra informado pela Meta no período'):'Eventos de compra atribuídos pela Meta'}</small></section>
+     <section className="mini-stat" aria-label="CPA no período"><p>CPA · custo por venda</p><strong>{ready?displayCPA(spend,sales):'—'}</strong><small>Gasto em anúncios ÷ vendas no período, sem a taxa de 12%</small></section>
      <section className="mini-stat"><p>Impressões / cliques</p><strong>{ready?`${impressions.toLocaleString('pt-BR')} / ${clicks.toLocaleString('pt-BR')}`:'—'}</strong><small>CTR: {ready?(impressions?clicks/impressions*100:0).toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}%</small></section>
      <section className="mini-stat"><p>Custo por clique</p><strong>{ready&&clicks?money(Math.round(spend/clicks)):'—'}</strong><small>Gasto dividido por cliques no período</small></section>
     </div>
@@ -72,11 +74,11 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
     {queriedAt&&ready&&<small>Relatório consultado em {new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(queriedAt))}. A Meta pode atualizar os números com atraso.</small>}
     {!campaigns.length&&<p>Nenhuma campanha vinculada ainda.</p>}
    </div>
-   <div className="table-wrap"><table><thead><tr><th>Campanha</th>{admin&&<th>Cliente</th>}<th>Vendas</th><th>Gasto no período</th><th>Taxa 12%</th><th>Total com taxa</th><th>Impressões</th><th>Cliques</th><th>Pendente na carteira</th><th>Última sincronização financeira</th></tr></thead>
+   <div className="table-wrap"><table><thead><tr><th>Campanha</th>{admin&&<th>Cliente</th>}<th>Vendas</th><th>CPA</th><th>Gasto no período</th><th>Taxa 12%</th><th>Total com taxa</th><th>Impressões</th><th>Cliques</th><th>Pendente na carteira</th><th>Última sincronização financeira</th></tr></thead>
     <tbody>{selectedRows.map(c=>{const metric=ready?report?.find(row=>row.id===c.id):undefined;return <tr key={c.id}>
      <td><strong>{c.name}</strong><small style={{display:'block'}}>Vínculo em {new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(new Date(c.bound_at))}</small>{c.last_error&&<small className="negative" style={{display:'block',whiteSpace:'normal',maxWidth:280}}>{c.last_error}</small>}</td>
      {admin&&<td>{profiles.find(p=>p.id===c.client_id)?.name||'Cliente'}</td>}
-     <td>{metric?.sales!==undefined?metric.sales.toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}</td>
+     <td>{metric?.sales!==undefined?metric.sales.toLocaleString('pt-BR',{maximumFractionDigits:2}):'—'}</td><td>{metric?displayCPA(metric.spend_cents,metric.sales):'—'}</td>
      <td>{metric?money(metric.spend_cents):'—'}</td><td>{metric?money(taxCents(metric.spend_cents)):'—'}</td><td>{metric?money(metric.spend_cents+taxCents(metric.spend_cents)):'—'}</td><td>{metric?metric.impressions.toLocaleString('pt-BR'):'—'}</td><td>{metric?metric.clicks.toLocaleString('pt-BR'):'—'}</td>
      <td>{money(campaignBill(c).pending)}</td><td>{new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(c.sampled_at))}</td>
     </tr>;})}</tbody></table></div>

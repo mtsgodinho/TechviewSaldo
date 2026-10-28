@@ -7,6 +7,7 @@ Consolidação em 28/10/2026.
 - Aviso destacado de dívida ao abrir o painel, com botão para gerar o Pix de recarga.
 - Conciliação do gasto desde o início do dia de ativação da campanha, incluindo o gasto anterior ao vínculo naquele dia e sem repetir débitos.
 - Relatório individual por campanha, com seleção de cliente/campanha e cartões de gasto, **vendas no período**, impressões/cliques, CTR e CPC. Vendas também aparecem na tabela.
+- CPA por campanha e período: gasto em anúncios dividido por vendas atribuídas, sem a taxa de 12%. Sem vendas, mostra “—”.
 - Filtros Hoje, Ontem, Esta semana, 7, 15 e 30 dias, Este mês e intervalo personalizado. Alterar filtros não altera a carteira.
 - Vendas vêm dos eventos de compra atribuídos pela Meta, com a mesma regra do ranking e sem somar agregados e subtipos duplicados. Ausência de compra informa zero; falha de consulta informa erro.
 - Ranking administrativo de leads e vendas atribuídos pela Meta, com pódio, busca, ordenação, paginação e filtros de data.
