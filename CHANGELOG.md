@@ -15,6 +15,7 @@ Consolidação em 28/10/2026.
 - Meu perfil: edição de nome e telefone, envio e remoção de foto.
 - Logo TechView no login e no painel, com fundo tecnológico animado no login e respeito à preferência por movimento reduzido.
 - Sair da conta acessível no rodapé do menu e no topo, inclusive em telas pequenas.
+- Atalho no celular: botão de instalação no login e menu, orientações para navegadores sem instalação direta e ícones TechView na tela inicial.
 - Histórico financeiro, auditoria, permissões por usuário e proteção contra crédito/débito duplicado preservados.
 
 ## Ativação
