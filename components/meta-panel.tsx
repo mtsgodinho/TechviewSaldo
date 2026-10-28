@@ -12,18 +12,24 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
  const [remote,setRemote]=useState<{id:string;name:string}[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [period,setPeriod]=useState<Period>(()=>presetPeriod('today')),[active,setActive]=useState('today');
  const [since,setSince]=useState(period.since),[until,setUntil]=useState(period.until),[dateError,setDateError]=useState('');
- const [report,setReport]=useState<CampaignReport[]|null>(null),[loading,setLoading]=useState(false),[reportError,setReportError]=useState(''),[queriedAt,setQueriedAt]=useState(''),[refresh,setRefresh]=useState(0);
+ const [report,setReport]=useState<CampaignReport[]|null>(null),[loading,setLoading]=useState(false),[reportError,setReportError]=useState(''),[queriedAt,setQueriedAt]=useState(''),[refresh,setRefresh]=useState(0),[loadedReportKey,setLoadedReportKey]=useState('');
+ const [reportClient,setReportClient]=useState(''),[reportCampaign,setReportCampaign]=useState('');
+ const campaignChoices=campaigns.filter(c=>!reportClient||c.client_id===reportClient);
+ const selectedCampaign=campaignChoices.find(c=>c.id===reportCampaign)||campaignChoices[0];
+ const selectedId=selectedCampaign?.id||'';
+ const selectedRows=selectedCampaign?[selectedCampaign]:[];
+ const requestKey=period.since+':'+period.until+':'+selectedId;
  const campaignKey=campaigns.map(c=>c.id+':'+c.sampled_at).join(',');
  useEffect(()=>{
-  if(!available){setReport(null);return;}
+  if(!available||!selectedId){setReport(null);setLoading(false);return;}
   const controller=new AbortController();setLoading(true);setReport(null);setReportError('');
-  fetch('/api/meta?'+new URLSearchParams({action:'insights',since:period.since,until:period.until,...(clientId?{client:clientId}:{})}),{cache:'no-store',signal:controller.signal})
+  fetch('/api/meta?'+new URLSearchParams({action:'insights',since:period.since,until:period.until,...(clientId?{client:clientId}:{}),campaign:selectedId}),{cache:'no-store',signal:controller.signal})
    .then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Não foi possível consultar o período');if(!Array.isArray(j.rows))throw new Error('Resposta de métricas inválida');return j;})
-   .then(j=>{if(!controller.signal.aborted){setReport(j.rows);setQueriedAt(j.queried_at);}})
+   .then(j=>{if(!controller.signal.aborted){setReport(j.rows.filter((row:CampaignReport)=>row.id===selectedId));setLoadedReportKey(requestKey);setQueriedAt(j.queried_at);}})
    .catch(e=>{if(!controller.signal.aborted)setReportError(e instanceof Error?e.message:'Erro ao consultar métricas');})
    .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return ()=>controller.abort();
- },[available,period.since,period.until,campaignKey,refresh,clientId]);
+ },[available,period.since,period.until,campaignKey,refresh,clientId,selectedId]);
  async function run(body?:Record<string,unknown>){
   setBusy(true);setError('');setNotice('');
   try{const r=await fetch('/api/meta',body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const j=await r.json();if(!r.ok)throw new Error(j.error||'Falha na integração');if(j.errors?.length)setError(j.errors.join(' '));if(j.campaigns)setRemote(j.campaigns);else{setNotice(body?.action==='bind'?'Campanha vinculada. Referência inicial registrada.':`Sincronização concluída: ${j.updated} campanha(s) atualizada(s).`);setRefresh(v=>v+1);router.refresh();}}
@@ -32,13 +38,18 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
  function choose(id:PeriodPreset){const next=presetPeriod(id);setPeriod(next);setSince(next.since);setUntil(next.until);setActive(id);setDateError('');}
  const spend=report?.reduce((sum,c)=>sum+c.spend_cents,0)||0,impressions=report?.reduce((sum,c)=>sum+c.impressions,0)||0,clicks=report?.reduce((sum,c)=>sum+c.clicks,0)||0;
  const tax=report?.reduce((sum,c)=>sum+taxCents(c.spend_cents),0)||0;
- const ready=report!==null&&!loading;
+ const ready=report!==null&&!loading&&loadedReportKey===requestKey;
  return <>
   <section className="panel">
    <div className="panel-heading"><div><h2>Campanhas e métricas</h2><p>Histórico da Meta por período, incluindo dados anteriores ao vínculo.</p></div><button className="secondary" disabled={busy||loading||!available} onClick={()=>run({action:'sync',force:admin})}><RefreshCw size={16}/>{busy?'Atualizando…':'Atualizar métricas'}</button></div>
    <div className="meta-content">
     {!available&&<div className="notice">Integração em preparação. O administrador precisa aplicar a migração 002_meta.sql no Supabase.</div>}
     {error&&<div className="error" role="alert">{error}</div>}{notice&&<div className="notice" role="status">{notice}</div>}
+    <div className="campaign-report-selectors">
+     {admin&&!clientId&&<label>Cliente do relatório<select aria-label="Cliente do relatório" value={reportClient} onChange={e=>{setReportClient(e.target.value);setReportCampaign('')}}><option value="">Todos os clientes</option>{clients.filter(c=>campaigns.some(item=>item.client_id===c.id)).map(c=><option key={c.id} value={c.id}>{profiles.find(p=>p.id===c.id)?.name||'Cliente'}</option>)}</select></label>}
+     <label>Campanha do relatório<select aria-label="Campanha do relatório" value={selectedId} onChange={e=>setReportCampaign(e.target.value)} disabled={!campaignChoices.length}><option value="" disabled>Nenhuma campanha vinculada</option>{campaignChoices.map(c=><option key={c.id} value={c.id}>{c.name} • {profiles.find(p=>p.id===c.client_id)?.name||'Cliente'}</option>)}</select></label>
+    </div>
+    {selectedCampaign&&<div className="campaign-report-context"><strong>Campanha: {selectedCampaign.name}</strong><span>Cliente: {profiles.find(p=>p.id===selectedCampaign.client_id)?.name||'Cliente'}</span><small>Os indicadores abaixo são exclusivos desta campanha e do período escolhido.</small></div>}
     <div className="period-presets" role="group" aria-label="Períodos rápidos">{presets.map(p=><button type="button" key={p.id} aria-pressed={active===p.id} className={active===p.id?'period-button selected':'period-button'} onClick={()=>choose(p.id)}>{p.label}</button>)}</div>
     <form className="period-form" onSubmit={e=>{e.preventDefault();try{const next=validatePeriod(since,until);setPeriod(next);setActive('custom');setDateError('');setRefresh(v=>v+1);}catch(e){setDateError((e as Error).message);}}}>
      <label>Data inicial<input type="date" aria-label="Data inicial das métricas" value={since} required onChange={e=>setSince(e.target.value)}/></label>
@@ -60,7 +71,7 @@ export default function MetaPanel({campaigns,profiles,clients,admin,available,cl
     {!campaigns.length&&<p>Nenhuma campanha vinculada ainda.</p>}
    </div>
    <div className="table-wrap"><table><thead><tr><th>Campanha</th>{admin&&<th>Cliente</th>}<th>Gasto no período</th><th>Taxa 12%</th><th>Total com taxa</th><th>Impressões</th><th>Cliques</th><th>Pendente na carteira</th><th>Última sincronização financeira</th></tr></thead>
-    <tbody>{campaigns.map(c=>{const metric=ready?report?.find(row=>row.id===c.id):undefined;return <tr key={c.id}>
+    <tbody>{selectedRows.map(c=>{const metric=ready?report?.find(row=>row.id===c.id):undefined;return <tr key={c.id}>
      <td><strong>{c.name}</strong><small style={{display:'block'}}>Vínculo em {new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(new Date(c.bound_at))}</small>{c.last_error&&<small className="negative" style={{display:'block',whiteSpace:'normal',maxWidth:280}}>{c.last_error}</small>}</td>
      {admin&&<td>{profiles.find(p=>p.id===c.client_id)?.name||'Cliente'}</td>}
      <td>{metric?money(metric.spend_cents):'—'}</td><td>{metric?money(taxCents(metric.spend_cents)):'—'}</td><td>{metric?money(metric.spend_cents+taxCents(metric.spend_cents)):'—'}</td><td>{metric?metric.impressions.toLocaleString('pt-BR'):'—'}</td><td>{metric?metric.clicks.toLocaleString('pt-BR'):'—'}</td>

@@ -20,3 +20,6 @@ test('login highlights uploaded logo and respects reduced motion',async({page})=
 test('profile and logo upload mutations reject foreign origins',async({request})=>{
  for(const path of ['/api/profile','/api/profile/avatar','/api/brand/logo']){const r=await request.post(path,{headers:{origin:'https://untrusted.example'},data:{name:'Forbidden'}});expect(r.status()).toBe(403);}
 });
+test('monthly API protects administrative changes and foreign origins',async({request})=>{
+ const get=await request.get('/api/monthly');expect(get.status()).toBe(403);const post=await request.post('/api/monthly',{headers:{origin:'https://untrusted.example'},data:{action:'confirm',id:'test'}});expect(post.status()).toBe(403);
+});

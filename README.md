@@ -167,3 +167,17 @@ Fotos são processadas no servidor com Sharp, sem aceitar SVG ou animações: JP
 O login inclui fundo tecnológico em CSS com grade, circuitos e luzes em movimento lento, sem vídeo ou dependência externa. As animações são desativadas quando o dispositivo solicita movimento reduzido. O layout e os formulários de perfil foram preparados para desktop e celular.
 
 O menu lateral mantém **Sair da conta** e o perfil fixos na área visível. Em telas baixas, apenas a lista de navegação ganha rolagem. Há também **Sair** no topo, acessível sem abrir o menu no celular. Ambas as opções usam o mesmo encerramento de sessão e retornam à tela de login para trocar de usuário.
+
+### Mensalidade por cliente, com Pix próprio
+
+A aba **Mensalidade** permite ao administrador definir um preço individual e gerar um Pix com esse valor; o cliente também gera ou reabre a cobrança pelo próprio login. O valor vem do banco, não de parâmetros do navegador. O Pix usa a mesma chave configurada para recebimento, com identificador iniciado por M e registro separado de recargas de anúncios. Existe no máximo uma cobrança aguardando/informada por cliente; repetir a geração reabre o mesmo Pix. Alterar o preço não modifica cobranças ou períodos já registrados: para substituir uma cobrança ainda pendente, rejeite-a antes de gerar outra.
+
+O cliente paga e clica **Já paguei a mensalidade**; isso apenas informa o pagamento. O administrador confere o extrato e usa **Confirmar Pix e ativar um mês** dentro da aba Mensalidade. O mês começa na data/hora da confirmação, não na geração do QR Code nem no aviso do cliente. Confirmações repetidas não criam outro período. A ativação e a marcação da cobrança confirmada são atômicas, com auditoria. Cobranças rejeitadas não ativam a mensalidade.
+
+A validade termina no mesmo dia e horário do próximo mês, no fuso America/Sao_Paulo. Em meses sem aquele dia, usa o último dia (31/01 → 28/02, ou 29/02 em ano bissexto). A tela usa a hora informada pelo servidor e atualiza a cada minuto enquanto visível; o banco valida o vencimento de forma autoritativa. Uma nova cobrança fica disponível depois do vencimento. Não há renovação automática, débito da carteira, taxa adicional de anúncios sobre a mensalidade ou crédito de anúncios com o pagamento. O vencimento apenas muda o status; não bloqueia login nem pausa campanhas automaticamente.
+
+Para ativar, execute o **SQL único atualizado** `supabase/ATUALIZACAO_UNICA.sql`, que detecta e instala a migração `005_monthly_fees.sql` quando ausente. Também é possível aplicar apenas a 005 uma vez no banco já atualizado. Não reaplique `schema.sql`. O histórico das mensalidades fica nas tabelas `monthly_settings`, `monthly_requests` e `monthly_cycles`, com RLS: cliente lê somente seus registros; valores, confirmação e rejeição exigem administrador ativo. Não foram adicionados gateways nem APIs de pagamento.
+
+### Relatório individual de campanhas
+
+Em Campanhas Meta, os indicadores agora se referem à campanha selecionada. Administradores podem escolher cliente e campanha; clientes só enxergam suas próprias campanhas. O detalhe de um cliente já restringe as escolhas a ele. Gasto, taxa, total com taxa, impressões, cliques, CTR e CPC seguem a mesma campanha e período. A API cruza o ID selecionado com os vínculos sob RLS antes de consultar a Meta. Trocar a seleção consulta o relatório sem alterar carteira; a sincronização financeira continua conciliando cada campanha vinculada individualmente.

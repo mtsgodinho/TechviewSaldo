@@ -10,9 +10,9 @@ export async function GET(req:Request){try{
  if(params.get('action')==='insights'){
   const {db}=await actor();const period=validatePeriod(params.get('since')||'',params.get('until')||'');
   // A lista de IDs vem do banco sob RLS, nunca de parâmetros do navegador.
-  const scope=params.get('client');if(scope)z.uuid().parse(scope);
+  const scope=params.get('client');if(scope)z.uuid().parse(scope);const campaign=params.get('campaign');if(campaign)z.string().regex(/^\d+$/).parse(campaign);
   const campaigns:{id:string;account_id:string}[]=[];
-  for(let offset=0;;offset+=500){let query=db.from('meta_campaigns').select('id,account_id').order('id').range(offset,offset+499);if(scope)query=query.eq('client_id',scope);const {data,error}=await query;if(error)throw new Error('Não foi possível consultar as campanhas vinculadas');campaigns.push(...(data||[]));if((data?.length||0)<500)break;}
+  for(let offset=0;;offset+=500){let query=db.from('meta_campaigns').select('id,account_id').order('id').range(offset,offset+499);if(scope)query=query.eq('client_id',scope);if(campaign)query=query.eq('id',campaign);const {data,error}=await query;if(error)throw new Error('Não foi possível consultar as campanhas vinculadas');campaigns.push(...(data||[]));if((data?.length||0)<500)break;}
   const rows=await readCampaignReport(campaigns,metaAccount(),period,(id,range)=>metaGet(`${id}/insights`,{fields:'spend,impressions,clicks',time_range:JSON.stringify(range),limit:'1'}));
   return NextResponse.json({period,rows,queried_at:new Date().toISOString()},{headers:{'Cache-Control':'private, no-store'}});
  }

@@ -14,5 +14,5 @@ for(const state of ['base','meta002','meta003'] as const)test(`unified SQL upgra
  const balance=async()=>Number((await db.query<{balance_cents:number}>('select balance_cents from wallets')).rows[0].balance_cents);
  assert.equal(await balance(),7485);const count=(await db.query('select * from wallet_transactions')).rows.length;
  await db.exec(sql);assert.equal(await balance(),7485);assert.equal((await db.query('select * from wallet_transactions')).rows.length,count);
- assert.equal((await db.query('select * from clients')).rows.length,1);await db.close();
+ assert.equal((await db.query('select * from clients')).rows.length,1);assert.equal((await db.query('select * from monthly_settings')).rows.length,0);assert.equal((await db.query('select * from monthly_cycles')).rows.length,0);await db.close();
 });
