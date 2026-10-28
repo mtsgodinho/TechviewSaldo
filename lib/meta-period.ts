@@ -1,9 +1,10 @@
 import {accountDate} from './meta-values';
-export type PeriodPreset='today'|'yesterday'|'week'|'7'|'15'|'30'|'month';
+export type PeriodPreset='today'|'yesterday'|'week'|'7'|'14'|'15'|'30'|'90'|'all'|'month';
 export type Period={since:string;until:string};
 function shift(day:string,days:number){const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
 export function presetPeriod(preset:PeriodPreset,now=new Date()):Period{
  const today=accountDate(now);
+ if(preset==='all'){const start=new Date(today+'T12:00:00Z');start.setUTCFullYear(start.getUTCFullYear()-3);return {since:start.toISOString().slice(0,10),until:today};}
  if(preset==='yesterday'){const yesterday=shift(today,-1);return {since:yesterday,until:yesterday};}
  if(preset==='week'){const day=new Date(today+'T12:00:00Z').getUTCDay();return {since:shift(today,-((day+6)%7)),until:today};}
  if(preset==='month')return {since:today.slice(0,8)+'01',until:today};

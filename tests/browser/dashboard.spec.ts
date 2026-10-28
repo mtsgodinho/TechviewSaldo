@@ -67,3 +67,20 @@ test('administrator overview separates each client wallet instead of an aggregat
  await expect(page.locator('.client-wallet').filter({hasText:'Outro cliente'}).locator('.individual-balance')).toHaveText('R$ 50,00');
  await expect(page.getByText('SALDO TOTAL DISPONÍVEL',{exact:true})).toHaveCount(0);
 });
+
+for(const width of [1440,390])test(`ranking podium, search, pagination and period filters ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:1000});const calls:string[]=[];
+ const rows=Array.from({length:26},(_,i)=>({id:String(i),name:i===0?'Ana Líder':`Cliente ${i+1}`,leads:100+i,sales:30-i,spend_cents:10000,campaigns:1,lead_events:['lead'],sale_events:['omni_purchase']}));
+ await page.route('**/api/ranking*',r=>{calls.push(r.request().url());return r.fulfill({json:{rows,queried_at:new Date().toISOString()}})});
+ await mount(page,'admin');if(width===390)await page.getByRole('button',{name:'Abrir menu'}).click();await page.getByRole('button',{name:'Ranking de vendas',exact:true}).click();
+ await expect(page.locator('.ranking-panel h2')).toHaveText('Ranking de vendas');await expect(page.locator('.ranking-podium .podium-card')).toHaveCount(3);await expect(page.locator('.place-1')).toContainText('Ana Líder');await expect(page.locator('.ranking-panel tbody tr')).toHaveCount(25);
+ await page.getByRole('button',{name:'Próxima página do ranking'}).click();await expect(page.locator('.ranking-panel tbody tr')).toHaveCount(1);
+ await page.getByLabel('Pesquisar cliente no ranking').fill('ana lider');await expect(page.locator('.ranking-panel tbody tr')).toHaveCount(1);await expect(page.locator('.ranking-panel tbody tr')).toContainText('Ana Líder');
+ for(const name of ['Ontem','Esta semana','7 dias','14 dias','15 dias','30 dias','90 dias','Este mês','Todos (até 36 meses)']){await page.getByRole('button',{name,exact:true}).click();await expect(page.getByRole('button',{name,exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.locator('.place-1')).toBeVisible();}
+ await page.getByLabel('Data inicial do ranking').fill('2026-09-01');await page.getByLabel('Data final do ranking').fill('2026-09-30');await page.getByRole('button',{name:'Aplicar período'}).click();await expect(page.locator('.place-1')).toBeVisible();expect(calls.some(url=>url.includes('since=2026-09-01')&&url.includes('until=2026-09-30'))).toBe(true);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:`/tmp/techview-ranking-${width}.png`,fullPage:true});
+});
+test('ranking failures never display fabricated zeros or stale podium; clients have no global ranking tab',async({page})=>{
+ await page.route('**/api/ranking*',r=>r.fulfill({status:400,json:{error:'Token da Meta indisponível'}}));await mount(page,'admin');await page.getByRole('button',{name:'Ranking de vendas',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Token da Meta indisponível');await expect(page.locator('.ranking-totals')).toHaveCount(0);await expect(page.locator('.ranking-podium')).toHaveCount(0);
+ await mount(page,'client');await expect(page.getByRole('button',{name:'Ranking de vendas',exact:true})).toHaveCount(0);
+});

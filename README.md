@@ -1,4 +1,4 @@
-# TECHVIEW SALDO
+# TECHVIEW SALDO — V1.2
 
 Aplicativo de controle de crédito interno para anúncios. Next.js App Router, TypeScript, Tailwind CSS, Supabase Auth/PostgreSQL e deploy na Vercel. Pix estático BR Code com confirmação **manual**. Sem gateways, saques, transferências ou integração Meta Ads.
 
@@ -135,3 +135,15 @@ A visão geral administrativa agora destaca um card por cliente com crédito adi
 Os relatórios têm Hoje (padrão), Ontem, Esta semana (segunda a domingo), 7, 15 e 30 dias (incluem hoje), Este mês e datas personalizadas, limitadas aos últimos 36 meses e à disponibilidade da Meta. Fuso America/Sao_Paulo. Clientes consultam apenas campanhas vinculadas ao próprio perfil. O histórico pode anteceder o vínculo: ele não subtrai a referência inicial e não gera débitos ao trocar filtros. Gasto em anúncios, taxa estimada do período e total com taxa aparecem separados. A taxa do relatório é arredondada por campanha/período; a carteira usa o acumulado contabilizável desde a ativação, portanto diferenças de um centavo entre recortes são possíveis e não são novos lançamentos.
 
 O bloco Crédito e gasto das campanhas mostra valores financeiros acumulados desde a ativação, sem mudar com o filtro histórico. Erros de relatório aparecem como indisponibilidade, sem apresentar zeros falsos ou resultados do período anterior. Depois de aplicar a 003 e publicar o código, compare os saldos com o histórico antes de vincular novas campanhas.
+
+### SQL único para atualizar o ambiente existente
+
+Para instalar de uma vez as mudanças pendentes, use **somente `supabase/ATUALIZACAO_UNICA.sql`**, no SQL Editor com tradução automática desativada. Ele pressupõe que o banco inicial já existe, detecta a presença das migrações Meta 002/003 e executa apenas as ausentes, dentro de uma transação com bloqueio de atualização. Preserva clientes, Pix, carteiras, vínculos e histórico. A primeira aplicação pode conciliar débitos pendentes de gasto do dia e taxa de 12%, conforme a regra autorizada. Reexecutar o arquivo completo não duplica lançamentos. Não execute `schema.sql` novamente nem cole os arquivos antigos junto com ele. O resultado final deve mostrar “Atualização concluída”. Foi testado a partir do banco inicial, da migração 002 e da 003, com repetição sem alteração adicional dos saldos.
+
+### Ranking de vendas atribuídas pela Meta
+
+A aba **Ranking de vendas** fica no painel administrativo. A API `/api/ranking` exige administrador ativo no servidor e consulta somente campanhas vinculadas aos clientes. Ela não usa RPCs financeiras nem altera saldo. Dados ao vivo da Meta com filtros Hoje, Ontem, Esta semana, 7/14/15/30/90 dias, Este mês, Todos (janela consultável de até 36 meses) e datas personalizadas. Há pódio por vendas, totais, busca, ordenação por vendas/leads/razão entre eventos e páginas de 25 clientes. O ranking não exige tabelas novas: o SQL único prepara os vínculos já utilizados pela integração.
+
+Leads vêm da primeira família retornada entre `lead`, `omni_lead`, `offsite_conversion.fb_pixel_lead` e `onsite_conversion.lead_grouped`. Vendas vêm de `omni_purchase`, `purchase`, `offsite_conversion.fb_pixel_purchase` ou `onsite_conversion.purchase`, nessa prioridade. Um agregado e seus subtipos nunca são somados entre si, evitando duplicar conversões. Resultados de campanhas distintas do mesmo cliente são somados. A consulta usa `actions`, `use_unified_attribution_setting=true` e `action_report_time=impression`, respeitando a atribuição dos conjuntos de anúncios e agrupando pela data da impressão. Para comparar com o Gerenciador, use as mesmas datas, campanhas, eventos e atribuição.
+
+Os números são eventos **atribuídos**, e não confirmação de pagamento ou venda do CRM. Pixel/CAPI/formulários precisam registrar os eventos corretos e fazer deduplicação de eventos nas próprias fontes. Cliques ou conversas iniciadas não viram leads por inferência. Sem evento de lead ou compra no período, a interface mostra contagem zero e identifica a ausência do evento; falha de acesso/consulta aparece como erro, sem fabricar números nem manter o pódio do período anterior. A razão vendas/leads não é uma coorte do funil, pode superar 100% e fica indefinida quando não há leads. A Meta pode revisar ou retornar atribuições fracionárias. Nenhum cálculo de imposto ou carteira é alterado pelo ranking.
